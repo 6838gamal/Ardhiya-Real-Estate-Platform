@@ -13,7 +13,7 @@ from jose.exceptions import JWTError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from app.core.config import settings
+from app.config.settings import settings
 from app.modules.auth.models import UserSession
 from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
