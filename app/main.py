@@ -55,22 +55,35 @@ async def render_context(
     
     # Get current user if not provided
     if current_user is None:
-        # Try to get user from session
-        session = await get_current_user_optional(request)
-        if session:
-            from app.modules.users.services import UserService
-            user = UserService.get_user_by_id(session.user_id)
-            
-            if user:
-                current_user = {
-                    "id": user.id,
-                    "name": user.name,
-                    "email": user.email,
-                    "role": user.role,
-                    "picture": user.picture,
-                    "is_authenticated": True
-                }
-            else:
+        # ✅ استخدام cookie مباشرة بدلاً من get_current_user_optional
+        from app.modules.auth.services import SessionService
+        from app.modules.users.services import UserService
+        from app.config.database import get_db
+        from app.config.settings import settings
+        
+        session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+        if session_token:
+            try:
+                db = next(get_db())
+                session_service = SessionService(db)
+                session = session_service.get_session(session_token)
+                if session:
+                    user = UserService.get_user_by_id(session.user_id)
+                    if user:
+                        current_user = {
+                            "id": user.id,
+                            "name": user.name,
+                            "email": user.email,
+                            "role": user.role,
+                            "picture": user.picture,
+                            "is_authenticated": True
+                        }
+                    else:
+                        current_user = None
+                else:
+                    current_user = None
+            except Exception as e:
+                print(f"Error getting session: {e}")
                 current_user = None
         else:
             current_user = None
