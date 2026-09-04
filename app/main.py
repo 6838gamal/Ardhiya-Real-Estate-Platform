@@ -12,7 +12,7 @@ from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
 from app.modules.auth.dependencies import get_current_user_optional, get_current_user
 from app.modules.auth.services import AuthService, SessionService
-from app.database import get_db
+from app.config.database import get_db
 
 BASE_DIR = Path(__file__).resolve().parent
 
