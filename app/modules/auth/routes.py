@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import RedirectResponse
 
-from app.condig.database import get_db
+from app.config.database import get_db
 from app.modules.auth.dependencies import (
     get_auth_service,
     get_current_user,
