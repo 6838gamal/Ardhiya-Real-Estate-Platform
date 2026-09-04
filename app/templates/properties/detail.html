@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-section">
+    <div class="container">
+        <a href="/properties" class="back-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            {{ _('common.back') }}
+        </a>
+
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18M9 21V9"/>
+                </svg>
+            </div>
+            <h2>{{ _('common.coming_soon') }}</h2>
+            <p>{{ _('home.no_properties') }}</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

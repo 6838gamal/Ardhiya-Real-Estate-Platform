@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-section">
+    <div class="container">
+        <div class="dashboard-layout">
+            <aside class="dashboard-sidebar">
+                <nav class="dashboard-nav">
+                    <a href="#" class="dashboard-nav-link active">{{ _('dashboard.overview') }}</a>
+                    <a href="#" class="dashboard-nav-link">{{ _('dashboard.my_properties') }}</a>
+                    <a href="#" class="dashboard-nav-link">{{ _('dashboard.add_property') }}</a>
+                    <a href="/favorites" class="dashboard-nav-link">{{ _('dashboard.favorites') }}</a>
+                    <a href="/inquiries" class="dashboard-nav-link">{{ _('dashboard.inquiries') }}</a>
+                    <a href="#" class="dashboard-nav-link">{{ _('dashboard.settings') }}</a>
+                </nav>
+            </aside>
+
+            <div class="dashboard-main">
+                <div class="page-header">
+                    <h1 class="page-title">{{ _('dashboard.title') }}</h1>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">{{ _('dashboard.my_properties') }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">{{ _('dashboard.favorites') }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">{{ _('dashboard.inquiries') }}</div>
+                    </div>
+                </div>
+
+                <div class="empty-state">
+                    <p>{{ _('dashboard.coming_soon') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
