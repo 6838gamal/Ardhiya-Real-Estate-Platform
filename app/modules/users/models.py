@@ -38,6 +38,10 @@ class User(Base):
     
     # Relationships
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    
+    # ✅ إضافة علاقة sessions
+    sessions = relationship("UserSession", back_populates="user", lazy="select")
+    
     # Future relationships (will be added when modules are implemented)
     # properties = relationship("Property", back_populates="owner")
     # favorites = relationship("Favorite", back_populates="user")
