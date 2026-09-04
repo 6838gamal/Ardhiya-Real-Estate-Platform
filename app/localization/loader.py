@@ -23,7 +23,8 @@ def _load_translations() -> Dict[str, Dict[str, str]]:
 
 def get_translation(lang: str, key: str) -> str:
     translations = _load_translations()
-    table = translations.get(lang, translations.get(settings.default_language, {}))
+    # ✅ استخدام DEFAULT_LANGUAGE بدلاً من default_language
+    table = translations.get(lang, translations.get(settings.DEFAULT_LANGUAGE, {}))
     return table.get(key, key)
 
 
