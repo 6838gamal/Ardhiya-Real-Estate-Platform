@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func
 
-from app.database import SessionLocal
+from app.config.database import SessionLocal
 from app.modules.users.models import User, UserProfile
 from app.modules.users.schemas import UserCreate, UserUpdate, UserProfileUpdate
 
