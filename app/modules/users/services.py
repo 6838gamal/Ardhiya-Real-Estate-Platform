@@ -25,7 +25,6 @@ class UserService:
         finally:
             db.close()
     
-    # ✅ أضف هذه الدالة الجديدة
     @staticmethod
     def get_by_id(user_id: int, include_profile: bool = True) -> Optional[User]:
         """Get user by ID (alias for get_user_by_id)."""
