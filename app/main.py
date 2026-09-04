@@ -59,7 +59,6 @@ async def render_context(
         session = await get_current_user_optional(request)
         if session:
             from app.modules.users.services import UserService
-            # ✅ استخدام get_user_by_id بدلاً من get_by_id
             user = UserService.get_user_by_id(session.user_id)
             
             if user:
@@ -138,7 +137,6 @@ async def login_page(
     # If user is already logged in, redirect to dashboard
     if session:
         from app.modules.users.services import UserService
-        # ✅ استخدام get_user_by_id بدلاً من get_by_id
         user = UserService.get_user_by_id(session.user_id)
         
         if user:
@@ -172,7 +170,6 @@ async def dashboard(
     Requires authentication.
     """
     from app.modules.users.services import UserService
-    # ✅ استخدام get_user_by_id بدلاً من get_by_id
     user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
@@ -202,7 +199,6 @@ async def admin_panel(
     Requires authentication and admin role.
     """
     from app.modules.users.services import UserService
-    # ✅ استخدام get_user_by_id بدلاً من get_by_id
     user = UserService.get_user_by_id(session.user_id)
     
     # Check if user has admin role
@@ -236,7 +232,6 @@ async def profile(
 ):
     """User profile page."""
     from app.modules.users.services import UserService
-    # ✅ استخدام get_user_by_id بدلاً من get_by_id
     user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
@@ -263,7 +258,6 @@ async def settings_page(
 ):
     """User settings page."""
     from app.modules.users.services import UserService
-    # ✅ استخدام get_user_by_id بدلاً من get_by_id
     user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
@@ -293,7 +287,6 @@ async def ai_chat(
     user = None
     if session:
         from app.modules.users.services import UserService
-        # ✅ استخدام get_user_by_id بدلاً من get_by_id
         user_obj = UserService.get_user_by_id(session.user_id)
         
         if user_obj:
