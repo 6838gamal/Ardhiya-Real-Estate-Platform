@@ -5,7 +5,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.modules.auth.services import AuthService, SessionService
+# ❌ حذف الاستيراد المباشر من auth.services
+# from app.modules.auth.services import AuthService, SessionService
 from app.modules.auth.models import UserSession
 from app.config.settings import settings
 
@@ -16,13 +17,27 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 
-def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+def _get_auth_service_class():
+    """Get AuthService with lazy import."""
+    from app.modules.auth.services import AuthService
+    return AuthService
+
+
+def _get_session_service_class():
+    """Get SessionService with lazy import."""
+    from app.modules.auth.services import SessionService
+    return SessionService
+
+
+def get_auth_service(db: Session = Depends(get_db)):
     """Get AuthService instance."""
+    AuthService = _get_auth_service_class()
     return AuthService(db)
 
 
-def get_session_service(db: Session = Depends(get_db)) -> SessionService:
+def get_session_service(db: Session = Depends(get_db)):
     """Get SessionService instance."""
+    SessionService = _get_session_service_class()
     return SessionService(db)
 
 
@@ -36,6 +51,8 @@ async def get_current_user_session(
     if not session_token:
         return None
 
+    # ✅ استيراد متأخر
+    SessionService = _get_session_service_class()
     session_service = SessionService(db)
     session = session_service.get_session(session_token)
 
@@ -67,7 +84,13 @@ def require_roles(allowed_roles: list[str]):
         session: UserSession = Depends(get_current_user),
         db: Session = Depends(get_db)
     ):
-        if not session.user.role in allowed_roles:
+        # ✅ استيراد متأخر للحصول على user
+        from app.modules.users.services import UserService
+        
+        user_service = UserService(db)
+        user = user_service.get_by_id(session.user_id)
+        
+        if not user or user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires one of roles: {', '.join(allowed_roles)}"
