@@ -15,25 +15,27 @@
             </div>
 
             <div class="auth-body">
-                <!-- عرض رسائل الخطأ -->
+                <!-- عرض رسائل الخطأ من Flask -->
                 {% if error %}
-                <div class="alert alert-danger" role="alert">
+                <div class="alert alert-danger" role="alert" id="errorAlert">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"/>
                         <line x1="12" y1="8" x2="12" y2="12"/>
                         <line x1="12" y1="16" x2="12.01" y2="16"/>
                     </svg>
                     <span>{{ error }}</span>
+                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">×</button>
                 </div>
                 {% endif %}
 
                 {% if success %}
-                <div class="alert alert-success" role="alert">
+                <div class="alert alert-success" role="alert" id="successAlert">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
                         <polyline points="22 4 12 14.01 9 11.01"/>
                     </svg>
                     <span>{{ success }}</span>
+                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">×</button>
                 </div>
                 {% endif %}
 
@@ -81,6 +83,7 @@
 </section>
 
 <script>
+    // ✅ تم التحديث: استخدام المسار الصحيح مع /api
     function initiateGoogleLogin() {
         const btn = document.getElementById('googleLoginBtn');
         btn.disabled = true;
@@ -91,24 +94,33 @@
             <span>{{ _('auth.redirecting') }}</span>
         `;
 
-        // Call API to get Google OAuth URL
+        // إزالة أي رسائل خطأ سابقة
+        const existingAlerts = document.querySelectorAll('.alert');
+        existingAlerts.forEach(alert => alert.remove());
+
+        // ✅ المسار الصحيح مع /api
         fetch('/api/auth/login', {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.auth_url) {
+            if (data.oauth_url) {
                 // Redirect to Google consent screen
-                window.location.href = data.auth_url;
+                window.location.href = data.oauth_url;
             } else {
-                throw new Error('No auth URL received');
+                throw new Error('No OAuth URL received');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Login error:', error);
             btn.disabled = false;
             btn.innerHTML = `
                 <svg width="20" height="20" viewBox="0 0 24 24">
@@ -119,39 +131,66 @@
                 </svg>
                 <span>{{ _('auth.try_again') }}</span>
             `;
-            // Show error message
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger';
-            errorDiv.innerHTML = `
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span>{{ _('auth.login_error') }}</span>
-            `;
-            document.querySelector('.auth-body').prepend(errorDiv);
+            
+            // عرض رسالة خطأ
+            showError('{{ _('auth.login_error') }}');
         });
     }
 
-    // Check for error/success params in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const error = urlParams.get('error');
-    const success = urlParams.get('success');
-    
-    if (error) {
+    // دالة مساعدة لعرض رسائل الخطأ
+    function showError(message) {
         const errorDiv = document.createElement('div');
         errorDiv.className = 'alert alert-danger';
+        errorDiv.id = 'errorAlert';
         errorDiv.innerHTML = `
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            <span>${decodeURIComponent(error)}</span>
+            <span>${message}</span>
+            <button type="button" class="alert-close" onclick="this.parentElement.remove()">×</button>
         `;
         document.querySelector('.auth-body').prepend(errorDiv);
     }
+
+    // دالة مساعدة لعرض رسائل النجاح
+    function showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'alert alert-success';
+        successDiv.id = 'successAlert';
+        successDiv.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <span>${message}</span>
+            <button type="button" class="alert-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        document.querySelector('.auth-body').prepend(successDiv);
+    }
+
+    // التحقق من وجود error أو success في URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    const success = urlParams.get('success');
+    
+    if (error) {
+        showError(decodeURIComponent(error));
+    }
+    
+    if (success) {
+        showSuccess(decodeURIComponent(success));
+    }
+
+    // Auto-hide alerts after 5 seconds
+    setTimeout(() => {
+        document.querySelectorAll('.alert').forEach(alert => {
+            alert.style.transition = 'opacity 0.5s';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
+        });
+    }, 5000);
 </script>
 
 <style>
@@ -323,6 +362,7 @@
         border-radius: 0.75rem;
         font-size: 0.9rem;
         animation: slideDown 0.3s ease;
+        position: relative;
     }
 
     .alert-danger {
@@ -339,6 +379,25 @@
 
     .alert svg {
         flex-shrink: 0;
+    }
+
+    .alert-close {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: inherit;
+        cursor: pointer;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+        padding: 0 0.25rem;
+    }
+
+    .alert-close:hover {
+        opacity: 1;
     }
 
     .spinner-border {
