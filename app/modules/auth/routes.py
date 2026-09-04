@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import RedirectResponse
 
-from app.database import get_db
+from app.condig.database import get_db
 from app.modules.auth.dependencies import (
     get_auth_service,
     get_current_user,
@@ -19,7 +19,7 @@ from app.modules.auth.schemas import (
     ErrorResponse
 )
 from app.modules.auth.services import AuthService
-from app.core.config import settings
+from app.config.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
