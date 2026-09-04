@@ -87,8 +87,9 @@ def require_roles(allowed_roles: list[str]):
         # ✅ استيراد متأخر للحصول على user
         from app.modules.users.services import UserService
         
-        user_service = UserService(db)
-        user = user_service.get_by_id(session.user_id)
+        # ✅ تصحيح: UserService لا يقبل معاملات
+        user_service = UserService()
+        user = user_service.get_user_by_id(session.user_id)
         
         if not user or user.role not in allowed_roles:
             raise HTTPException(
