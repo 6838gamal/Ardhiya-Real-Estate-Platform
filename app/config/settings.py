@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # ===== Google OAuth =====
     GOOGLE_CLIENT_ID: str  # Required - must be set in .env
     GOOGLE_CLIENT_SECRET: str  # Required - must be set in .env
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/callback"
+    GOOGLE_REDIRECT_URI: str 
 
     # ===== JWT =====
     JWT_SECRET: Optional[str] = None  # If not set, uses SECRET_KEY
