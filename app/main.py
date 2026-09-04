@@ -58,10 +58,9 @@ async def render_context(
         # Try to get user from session
         session = await get_current_user_optional(request)
         if session:
-            # ✅ استخدام UserService بدون db
             from app.modules.users.services import UserService
-            user_service = UserService()
-            user = user_service.get_by_id(session.user_id)
+            # ✅ استخدام get_user_by_id بدلاً من get_by_id
+            user = UserService.get_user_by_id(session.user_id)
             
             if user:
                 current_user = {
@@ -138,10 +137,9 @@ async def login_page(
     """
     # If user is already logged in, redirect to dashboard
     if session:
-        # ✅ استخدام UserService بدون db
         from app.modules.users.services import UserService
-        user_service = UserService()
-        user = user_service.get_by_id(session.user_id)
+        # ✅ استخدام get_user_by_id بدلاً من get_by_id
+        user = UserService.get_user_by_id(session.user_id)
         
         if user:
             return RedirectResponse(
@@ -173,10 +171,9 @@ async def dashboard(
     Dashboard page.
     Requires authentication.
     """
-    # ✅ استخدام UserService بدون db
     from app.modules.users.services import UserService
-    user_service = UserService()
-    user = user_service.get_by_id(session.user_id)
+    # ✅ استخدام get_user_by_id بدلاً من get_by_id
+    user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
         request,
@@ -204,10 +201,9 @@ async def admin_panel(
     Admin panel page.
     Requires authentication and admin role.
     """
-    # ✅ استخدام UserService بدون db
     from app.modules.users.services import UserService
-    user_service = UserService()
-    user = user_service.get_by_id(session.user_id)
+    # ✅ استخدام get_user_by_id بدلاً من get_by_id
+    user = UserService.get_user_by_id(session.user_id)
     
     # Check if user has admin role
     if not user or user.role != "admin":
@@ -239,10 +235,9 @@ async def profile(
     session = Depends(get_current_user)
 ):
     """User profile page."""
-    # ✅ استخدام UserService بدون db
     from app.modules.users.services import UserService
-    user_service = UserService()
-    user = user_service.get_by_id(session.user_id)
+    # ✅ استخدام get_user_by_id بدلاً من get_by_id
+    user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
         request,
@@ -267,10 +262,9 @@ async def settings_page(
     session = Depends(get_current_user)
 ):
     """User settings page."""
-    # ✅ استخدام UserService بدون db
     from app.modules.users.services import UserService
-    user_service = UserService()
-    user = user_service.get_by_id(session.user_id)
+    # ✅ استخدام get_user_by_id بدلاً من get_by_id
+    user = UserService.get_user_by_id(session.user_id)
     
     ctx = await render_context(
         request,
@@ -298,10 +292,9 @@ async def ai_chat(
     """AI Chat page."""
     user = None
     if session:
-        # ✅ استخدام UserService بدون db
         from app.modules.users.services import UserService
-        user_service = UserService()
-        user_obj = user_service.get_by_id(session.user_id)
+        # ✅ استخدام get_user_by_id بدلاً من get_by_id
+        user_obj = UserService.get_user_by_id(session.user_id)
         
         if user_obj:
             user = {
