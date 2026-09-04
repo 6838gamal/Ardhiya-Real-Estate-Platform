@@ -1,7 +1,7 @@
 """Auth module models."""
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -36,3 +36,10 @@ class UserSession(Base):
     def is_active(self) -> bool:
         """Check if session is active (not expired and not revoked)."""
         return not self.is_expired() and not self.is_revoked
+
+
+# Indexes for performance
+Index("idx_sessions_user_id", UserSession.user_id)
+Index("idx_sessions_token_revoked", UserSession.session_token, UserSession.is_revoked)
+Index("idx_sessions_expires_at", UserSession.expires_at)
+Index("idx_sessions_provider_user_id", UserSession.provider_user_id)
