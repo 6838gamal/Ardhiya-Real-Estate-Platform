@@ -13,48 +13,78 @@ from app.modules.users.schemas import UserCreate, UserUpdate, UserProfileUpdate
 class UserService:
     """Service for user CRUD operations."""
     
-    @staticmethod
-    def get_user_by_id(user_id: int, include_profile: bool = True) -> Optional[User]:
+    def __init__(self, db: Optional[Session] = None):
+        """
+        Initialize UserService.
+        
+        Args:
+            db: Optional database session. If not provided, creates new session.
+        """
+        self._db = db
+        self._owns_session = db is None
+    
+    def _get_db(self) -> Session:
+        """Get database session."""
+        if self._db is not None:
+            return self._db
+        return SessionLocal()
+    
+    def _cleanup(self, db: Session) -> None:
+        """Clean up session if owned."""
+        if self._owns_session and db:
+            db.close()
+    
+    # ============ CRUD Operations ============
+    
+    def get_user_by_id(self, user_id: int, include_profile: bool = True) -> Optional[User]:
         """Get user by ID with optional profile loading."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             query = db.query(User)
             if include_profile:
                 query = query.options(joinedload(User.profile))
             return query.filter(User.id == user_id, User.is_active == True).first()
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def get_by_id(user_id: int, include_profile: bool = True) -> Optional[User]:
+    def get_user_by_provider_id(self, provider: str, provider_user_id: str) -> Optional[User]:
+        """Get user by provider and provider_user_id."""
+        db = self._get_db()
+        try:
+            return db.query(User).filter(
+                User.provider == provider,
+                User.provider_user_id == provider_user_id,
+                User.is_active == True
+            ).first()
+        finally:
+            self._cleanup(db)
+    
+    def get_by_id(self, user_id: int, include_profile: bool = True) -> Optional[User]:
         """Get user by ID (alias for get_user_by_id)."""
-        return UserService.get_user_by_id(user_id, include_profile)
+        return self.get_user_by_id(user_id, include_profile)
     
-    @staticmethod
-    def get_user_by_email(email: str, include_profile: bool = True) -> Optional[User]:
+    def get_user_by_email(self, email: str, include_profile: bool = True) -> Optional[User]:
         """Get user by email with optional profile loading."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             query = db.query(User)
             if include_profile:
                 query = query.options(joinedload(User.profile))
             return query.filter(User.email == email).first()
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def get_user_by_email_strict(email: str) -> Optional[User]:
+    def get_user_by_email_strict(self, email: str) -> Optional[User]:
         """Get user by email even if inactive (for auth)."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             return db.query(User).filter(User.email == email).first()
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def create_user(data: UserCreate) -> User:
+    def create_user(self, data: UserCreate) -> User:
         """Create a new user with profile."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             # Check if user exists
             existing = db.query(User).filter(User.email == data.email).first()
@@ -65,22 +95,27 @@ class UserService:
             user = User(
                 email=data.email,
                 name=data.name,
-                avatar_url=data.avatar_url,
-                role=data.role,
-                is_active=True
+                avatar_url=getattr(data, 'avatar_url', None),
+                role=getattr(data, 'role', 'buyer'),
+                provider=getattr(data, 'provider', None),
+                provider_user_id=getattr(data, 'provider_user_id', None),
+                is_active=getattr(data, 'is_active', True),
+                is_verified=getattr(data, 'is_verified', False)
             )
             db.add(user)
             db.flush()  # Get user.id
             
-            # Create default profile
-            profile = UserProfile(
-                user_id=user.id,
-                preferred_language="en",
-                preferred_currency="SAR",
-                notifications_enabled=True,
-                marketing_emails=True
-            )
-            db.add(profile)
+            # Create default profile if not exists
+            profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+            if not profile:
+                profile = UserProfile(
+                    user_id=user.id,
+                    preferred_language="en",
+                    preferred_currency="SAR",
+                    notifications_enabled=True,
+                    marketing_emails=True
+                )
+                db.add(profile)
             
             db.commit()
             db.refresh(user)
@@ -91,12 +126,11 @@ class UserService:
             db.rollback()
             raise e
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def update_user(user_id: int, data: UserUpdate) -> Optional[User]:
+    def update_user(self, user_id: int, data: UserUpdate) -> Optional[User]:
         """Update user information."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             user = db.query(User).filter(User.id == user_id).first()
             if not user:
@@ -116,12 +150,11 @@ class UserService:
             db.rollback()
             raise e
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def update_user_profile(user_id: int, data: UserProfileUpdate) -> Optional[UserProfile]:
+    def update_user_profile(self, user_id: int, data: UserProfileUpdate) -> Optional[UserProfile]:
         """Update user profile/preferences."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
             if not profile:
@@ -141,12 +174,11 @@ class UserService:
             db.rollback()
             raise e
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def update_role(user_id: int, new_role: str, admin_user_id: int) -> Optional[User]:
+    def update_role(self, user_id: int, new_role: str, admin_user_id: int) -> Optional[User]:
         """Update user role (admin only)."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             # Verify admin exists and is admin
             admin = db.query(User).filter(User.id == admin_user_id).first()
@@ -156,11 +188,6 @@ class UserService:
             user = db.query(User).filter(User.id == user_id).first()
             if not user:
                 return None
-            
-            # Prevent self-demotion from admin? Allow for flexibility
-            if user_id == admin_user_id and new_role != "admin":
-                # Allow but warn? We'll allow it
-                pass
             
             user.role = new_role
             user.updated_at = datetime.utcnow()
@@ -172,12 +199,11 @@ class UserService:
             db.rollback()
             raise e
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def deactivate_user(user_id: int, admin_user_id: int) -> bool:
+    def deactivate_user(self, user_id: int, admin_user_id: int) -> bool:
         """Soft-delete user (set is_active=False)."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             # Verify admin
             admin = db.query(User).filter(User.id == admin_user_id).first()
@@ -201,12 +227,11 @@ class UserService:
             db.rollback()
             raise e
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def record_last_login(user_id: int) -> None:
+    def record_last_login(self, user_id: int) -> None:
         """Record user's last login timestamp."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             user = db.query(User).filter(User.id == user_id).first()
             if user:
@@ -215,14 +240,35 @@ class UserService:
         except Exception:
             db.rollback()
         finally:
-            db.close()
+            self._cleanup(db)
+    
+    def get_user_count(self) -> int:
+        """Get total number of active users."""
+        db = self._get_db()
+        try:
+            return db.query(User).filter(User.is_active == True).count()
+        finally:
+            self._cleanup(db)
 
 
 class UserQueryService:
     """Service for user queries (search, filter, pagination)."""
     
-    @staticmethod
+    def __init__(self, db: Optional[Session] = None):
+        self._db = db
+        self._owns_session = db is None
+    
+    def _get_db(self) -> Session:
+        if self._db is not None:
+            return self._db
+        return SessionLocal()
+    
+    def _cleanup(self, db: Session) -> None:
+        if self._owns_session and db:
+            db.close()
+    
     def list_users(
+        self,
         page: int = 1,
         per_page: int = 20,
         search: Optional[str] = None,
@@ -232,7 +278,7 @@ class UserQueryService:
         order_desc: bool = True
     ) -> Dict[str, Any]:
         """List users with filtering and pagination."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             query = db.query(User).options(joinedload(User.profile))
             
@@ -284,12 +330,11 @@ class UserQueryService:
                 "total_pages": total_pages
             }
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def get_users_by_role(role: str, limit: int = 100) -> List[User]:
+    def get_users_by_role(self, role: str, limit: int = 100) -> List[User]:
         """Get all users with a specific role."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             return (
                 db.query(User)
@@ -298,12 +343,11 @@ class UserQueryService:
                 .all()
             )
         finally:
-            db.close()
+            self._cleanup(db)
     
-    @staticmethod
-    def search_users_by_email(email_prefix: str, limit: int = 10) -> List[User]:
+    def search_users_by_email(self, email_prefix: str, limit: int = 10) -> List[User]:
         """Search users by email prefix (for autocomplete)."""
-        db = SessionLocal()
+        db = self._get_db()
         try:
             term = f"{email_prefix}%"
             return (
@@ -313,4 +357,4 @@ class UserQueryService:
                 .all()
             )
         finally:
-            db.close()
+            self._cleanup(db)
