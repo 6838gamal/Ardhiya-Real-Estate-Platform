@@ -5,34 +5,20 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-# ❌ حذف الاستيراد المباشر من auth.services
-# from app.modules.auth.services import AuthService, SessionService
 from app.modules.auth.models import UserSession
 from app.config.settings import settings
 
 # OAuth2 scheme for Bearer token (future API access)
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="auth/token",  # Future token endpoint
+    tokenUrl="auth/token",
     auto_error=False
 )
-
-
-def _get_auth_service_class():
-    """Get AuthService with lazy import."""
-    from app.modules.auth.services import AuthService
-    return AuthService
 
 
 def _get_session_service_class():
     """Get SessionService with lazy import."""
     from app.modules.auth.services import SessionService
     return SessionService
-
-
-def get_auth_service(db: Session = Depends(get_db)):
-    """Get AuthService instance."""
-    AuthService = _get_auth_service_class()
-    return AuthService(db)
 
 
 def get_session_service(db: Session = Depends(get_db)):
@@ -51,7 +37,6 @@ async def get_current_user_session(
     if not session_token:
         return None
 
-    # ✅ استيراد متأخر
     SessionService = _get_session_service_class()
     session_service = SessionService(db)
     session = session_service.get_session(session_token)
@@ -84,12 +69,9 @@ def require_roles(allowed_roles: list[str]):
         session: UserSession = Depends(get_current_user),
         db: Session = Depends(get_db)
     ):
-        # ✅ استيراد متأخر للحصول على user
         from app.modules.users.services import UserService
         
-        # ✅ تصحيح: UserService لا يقبل معاملات
-        user_service = UserService()
-        user = user_service.get_user_by_id(session.user_id)
+        user = UserService.get_user_by_id(session.user_id)
         
         if not user or user.role not in allowed_roles:
             raise HTTPException(
