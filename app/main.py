@@ -9,6 +9,7 @@ import secrets
 from app.config.settings import settings
 from app.localization.loader import make_gettext, get_direction, get_available_languages
 from app.modules.auth.routes import router as auth_router
+from app.modules.users.routes import router as users_router
 from app.modules.auth.dependencies import get_current_user_optional, get_current_user
 from app.modules.auth.services import AuthService, SessionService
 from app.database import get_db
@@ -28,8 +29,9 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # ===== Templates =====
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# ===== Auth Router =====
+# ===== Routers =====
 app.include_router(auth_router)
+app.include_router(users_router)
 
 
 # ===== Dependencies =====
@@ -364,7 +366,7 @@ async def shutdown_event():
     pass
 
 
-# ===== Middleware (Optional) =====
+# ===== Middleware =====
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Add security headers to all responses."""
@@ -383,7 +385,7 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# ===== Static Pages (Future) =====
+# ===== Static Pages =====
 @app.get("/about", response_class=HTMLResponse)
 async def about(request: Request, lang: str = Depends(get_lang)):
     """About page."""
