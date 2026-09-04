@@ -90,6 +90,14 @@ async def admin(request: Request, lang: str = Depends(get_lang)):
     return templates.TemplateResponse("admin/index.html", ctx)
 
 
+# ===== AI CHAT ROUTE =====
+@app.get("/ai-chat", response_class=HTMLResponse)
+async def ai_chat(request: Request, lang: str = Depends(get_lang)):
+    ctx = render_context(request, lang, active_page="chat")
+    return templates.TemplateResponse("ai-chat/index.html", ctx)
+# ===== END AI CHAT ROUTE =====
+
+
 @app.post("/set-lang/{lang_code}")
 async def set_lang(lang_code: str, response: Response):
     if lang_code in settings.languages:
