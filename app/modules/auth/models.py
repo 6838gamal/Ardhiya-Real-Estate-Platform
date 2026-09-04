@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.config.database import Base
 
 
 class UserSession(Base):
