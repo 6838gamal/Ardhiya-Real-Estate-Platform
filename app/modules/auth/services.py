@@ -19,7 +19,8 @@ from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
     GoogleJWKSResponse
 )
-from app.modules.users.schemas import UserCreate
+from app.modules.users.schemas import UserCreate, UserUpdate
+from app.modules.users.services import UserService
 
 
 class AuthService:
@@ -27,7 +28,7 @@ class AuthService:
 
     def __init__(self, db: Session):
         self.db = db
-        from app.modules.users.services import UserService
+        # ✅ استخدام الدالة المصدرة من users/services
         self.user_service = UserService(db)
         self.session_service = SessionService(db)
         self.token_service = TokenService()
@@ -156,18 +157,21 @@ class AuthService:
 
     async def _get_or_create_user(self, user_info: GoogleUserInfo) -> Any:
         """Get or create user from Google user info."""
-        # Check if user exists by provider_user_id
-        user = self.user_service.get_by_provider_id(user_info.sub)
+        # ✅ استخدام الدالة الصحيحة
+        user = self.user_service.get_user_by_provider_id(
+            provider="google",
+            provider_user_id=user_info.sub
+        )
 
         if not user:
-            # Create new user
+            # ✅ إزالة الحقول غير الموجودة
             user_data = UserCreate(
                 email=user_info.email,
                 name=user_info.name or user_info.given_name or user_info.email,
                 provider="google",
                 provider_user_id=user_info.sub,
-                role="buyer",  # Default role
-                picture=user_info.picture
+                is_active=True,
+                is_verified=True
             )
             user = self.user_service.create_user(user_data)
 
@@ -175,6 +179,7 @@ class AuthService:
         if user.name != user_info.name and user_info.name:
             user.name = user_info.name
             self.db.commit()
+            self.db.refresh(user)
 
         return user
 
