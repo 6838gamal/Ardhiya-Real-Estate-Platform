@@ -19,7 +19,6 @@ from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
     GoogleJWKSResponse
 )
-from app.modules.users.services import UserService
 from app.modules.users.schemas import UserCreate
 
 
@@ -28,6 +27,7 @@ class AuthService:
 
     def __init__(self, db: Session):
         self.db = db
+        from app.modules.users.services import UserService
         self.user_service = UserService(db)
         self.session_service = SessionService(db)
         self.token_service = TokenService()
