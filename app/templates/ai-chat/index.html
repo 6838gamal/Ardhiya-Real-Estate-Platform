@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('chat.full_title') or 'Chat with Agent' %} — {{ app_name }}{% endblock %}
+{% block title %}{{ _('chat.full_title') or 'Chat with Agent' }} — {{ app_name }}{% endblock %}
 
 {% block head_extra %}
 <style>
@@ -504,12 +504,12 @@
             typingIndicator.classList.remove('active');
 
             const msgDiv = document.createElement('div');
-            msgDiv.className = `chat-message ${sender}`;
+            msgDiv.className = 'chat-message ' + sender;
 
             const time = new Date();
             const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            msgDiv.innerHTML = `${text} <span class="time">${timeStr}</span>`;
+            msgDiv.innerHTML = text + ' <span class="time">' + timeStr + '</span>';
             chatMessages.insertBefore(msgDiv, typingIndicator);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
@@ -520,7 +520,7 @@
         }
 
         function sendMessage() {
-            const text = chatInput.value.trim();
+            var text = chatInput.value.trim();
             if (!text) return;
 
             addMessage(text, 'user');
@@ -530,25 +530,25 @@
             showTyping();
 
             // Simulate agent reply with typing delay
-            const delay = 600 + Math.random() * 1400;
-            setTimeout(() => {
-                const randomReply = agentResponses[Math.floor(Math.random() * agentResponses.length)];
+            var delay = 600 + Math.random() * 1400;
+            setTimeout(function() {
+                var randomReply = agentResponses[Math.floor(Math.random() * agentResponses.length)];
                 addMessage(randomReply, 'agent');
             }, delay);
         }
 
         // Event listeners
         chatSend.addEventListener('click', sendMessage);
-        chatInput.addEventListener('keydown', (e) => {
+        chatInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
         });
 
-        quickReplyBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const msg = btn.getAttribute('data-msg');
+        quickReplyBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var msg = this.getAttribute('data-msg');
                 if (msg) {
                     chatInput.value = msg;
                     sendMessage();
@@ -557,7 +557,7 @@
         });
 
         // Focus input on page load
-        setTimeout(() => {
+        setTimeout(function() {
             chatInput.focus();
         }, 300);
 
