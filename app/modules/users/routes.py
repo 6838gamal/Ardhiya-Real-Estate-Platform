@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.modules.auth.dependencies import get_current_user, require_admin
+# ❌ حذف الاستيراد المباشر من auth.dependencies
+# from app.modules.auth.dependencies import get_current_user, require_admin
 from app.modules.users.models import User
 from app.modules.users.schemas import (
     UserUpdate,
@@ -21,9 +22,22 @@ from app.modules.users.services import UserService, UserQueryService
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
 
+# ✅ دوال مساعدة للاستيراد المتأخر
+def _get_current_user_dependency():
+    """Get current_user dependency with lazy import."""
+    from app.modules.auth.dependencies import get_current_user
+    return get_current_user
+
+
+def _get_require_admin_dependency():
+    """Get require_admin dependency with lazy import."""
+    from app.modules.auth.dependencies import require_admin
+    return require_admin
+
+
 @router.get("/me", response_model=UserMeResponse)
 async def get_current_user_profile(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(_get_current_user_dependency())
 ):
     """
     Get the current user's full profile.
@@ -42,7 +56,7 @@ async def get_current_user_profile(
 @router.put("/me", response_model=UserMeResponse)
 async def update_current_user_profile(
     update_data: UserUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(_get_current_user_dependency())
 ):
     """
     Update the current user's profile.
@@ -61,7 +75,7 @@ async def update_current_user_profile(
 @router.put("/me/profile", response_model=UserMeResponse)
 async def update_current_user_preferences(
     update_data: UserProfileUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(_get_current_user_dependency())
 ):
     """
     Update the current user's preferences.
@@ -84,7 +98,7 @@ async def update_current_user_preferences(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user_by_id(
     user_id: int,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(_get_current_user_dependency())
 ):
     """
     Get a user by ID (public fields).
@@ -109,7 +123,7 @@ async def list_users(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     order_by: str = Query("created_at", description="Order by field"),
     order_desc: bool = Query(True, description="Order descending"),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(_get_require_admin_dependency())
 ):
     """
     List users with pagination and filters.
@@ -132,7 +146,7 @@ async def list_users(
 async def update_user_role(
     user_id: int,
     role_update: RoleUpdate,
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(_get_require_admin_dependency())
 ):
     """
     Update a user's role.
@@ -157,7 +171,7 @@ async def update_user_role(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_user(
     user_id: int,
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(_get_require_admin_dependency())
 ):
     """
     Deactivate a user (soft delete).
