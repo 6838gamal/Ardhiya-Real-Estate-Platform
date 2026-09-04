@@ -57,15 +57,26 @@ async def render_context(
     if current_user is None:
         # Try to get user from session
         session = await get_current_user_optional(request)
-        if session and session.user:
-            current_user = {
-                "id": session.user.id,
-                "name": session.user.name,
-                "email": session.user.email,
-                "role": session.user.role,
-                "picture": session.user.picture,
-                "is_authenticated": True
-            }
+        if session:
+            # ✅ استخدم session مباشرة للحصول على user_id
+            from app.modules.users.services import UserService
+            from app.config.database import get_db
+            
+            db = next(get_db())
+            user_service = UserService(db)
+            user = user_service.get_by_id(session.user_id)
+            
+            if user:
+                current_user = {
+                    "id": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "role": user.role,
+                    "picture": user.picture,
+                    "is_authenticated": True
+                }
+            else:
+                current_user = None
         else:
             current_user = None
     
@@ -129,11 +140,19 @@ async def login_page(
     Redirect to dashboard if already authenticated.
     """
     # If user is already logged in, redirect to dashboard
-    if session and session.user:
-        return RedirectResponse(
-            url=settings.get_frontend_url(settings.FRONTEND_DASHBOARD_URL),
-            status_code=status.HTTP_302_FOUND
-        )
+    if session:
+        from app.modules.users.services import UserService
+        from app.config.database import get_db
+        
+        db = next(get_db())
+        user_service = UserService(db)
+        user = user_service.get_by_id(session.user_id)
+        
+        if user:
+            return RedirectResponse(
+                url=settings.get_frontend_url(settings.FRONTEND_DASHBOARD_URL),
+                status_code=status.HTTP_302_FOUND
+            )
     
     # Get error/success messages from query params
     error = request.query_params.get("error")
@@ -159,17 +178,25 @@ async def dashboard(
     Dashboard page.
     Requires authentication.
     """
+    # ✅ احصل على user من session
+    from app.modules.users.services import UserService
+    from app.config.database import get_db
+    
+    db = next(get_db())
+    user_service = UserService(db)
+    user = user_service.get_by_id(session.user_id)
+    
     ctx = await render_context(
         request,
         lang,
         current_user={
-            "id": session.user.id,
-            "name": session.user.name,
-            "email": session.user.email,
-            "role": session.user.role,
-            "picture": session.user.picture,
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "picture": user.picture,
             "is_authenticated": True
-        },
+        } if user else None,
         active_page="dashboard"
     )
     return templates.TemplateResponse("dashboard/index.html", ctx)
@@ -185,8 +212,16 @@ async def admin_panel(
     Admin panel page.
     Requires authentication and admin role.
     """
+    # ✅ احصل على user من session
+    from app.modules.users.services import UserService
+    from app.config.database import get_db
+    
+    db = next(get_db())
+    user_service = UserService(db)
+    user = user_service.get_by_id(session.user_id)
+    
     # Check if user has admin role
-    if session.user.role != "admin":
+    if not user or user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -196,11 +231,11 @@ async def admin_panel(
         request,
         lang,
         current_user={
-            "id": session.user.id,
-            "name": session.user.name,
-            "email": session.user.email,
-            "role": session.user.role,
-            "picture": session.user.picture,
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "picture": user.picture,
             "is_authenticated": True
         },
         active_page="admin"
@@ -215,17 +250,25 @@ async def profile(
     session = Depends(get_current_user)
 ):
     """User profile page."""
+    # ✅ احصل على user من session
+    from app.modules.users.services import UserService
+    from app.config.database import get_db
+    
+    db = next(get_db())
+    user_service = UserService(db)
+    user = user_service.get_by_id(session.user_id)
+    
     ctx = await render_context(
         request,
         lang,
         current_user={
-            "id": session.user.id,
-            "name": session.user.name,
-            "email": session.user.email,
-            "role": session.user.role,
-            "picture": session.user.picture,
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "picture": user.picture,
             "is_authenticated": True
-        },
+        } if user else None,
         active_page="profile"
     )
     return templates.TemplateResponse("profile.html", ctx)
@@ -238,17 +281,25 @@ async def settings_page(
     session = Depends(get_current_user)
 ):
     """User settings page."""
+    # ✅ احصل على user من session
+    from app.modules.users.services import UserService
+    from app.config.database import get_db
+    
+    db = next(get_db())
+    user_service = UserService(db)
+    user = user_service.get_by_id(session.user_id)
+    
     ctx = await render_context(
         request,
         lang,
         current_user={
-            "id": session.user.id,
-            "name": session.user.name,
-            "email": session.user.email,
-            "role": session.user.role,
-            "picture": session.user.picture,
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "picture": user.picture,
             "is_authenticated": True
-        },
+        } if user else None,
         active_page="settings"
     )
     return templates.TemplateResponse("settings.html", ctx)
@@ -263,15 +314,23 @@ async def ai_chat(
 ):
     """AI Chat page."""
     user = None
-    if session and session.user:
-        user = {
-            "id": session.user.id,
-            "name": session.user.name,
-            "email": session.user.email,
-            "role": session.user.role,
-            "picture": session.user.picture,
-            "is_authenticated": True
-        }
+    if session:
+        from app.modules.users.services import UserService
+        from app.config.database import get_db
+        
+        db = next(get_db())
+        user_service = UserService(db)
+        user_obj = user_service.get_by_id(session.user_id)
+        
+        if user_obj:
+            user = {
+                "id": user_obj.id,
+                "name": user_obj.name,
+                "email": user_obj.email,
+                "role": user_obj.role,
+                "picture": user_obj.picture,
+                "is_authenticated": True
+            }
     
     ctx = await render_context(
         request,
