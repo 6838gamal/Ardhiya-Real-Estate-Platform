@@ -33,6 +33,8 @@ from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
 from app.modules.auth.dependencies import get_current_user_optional, get_current_user
 from app.modules.auth.services import AuthService, SessionService
+from app.modules.users.services import UserService
+from app.modules.users.models import User
 from app.config.database import get_db, engine, SessionLocal, Base
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -329,15 +331,14 @@ def get_lang(request: Request) -> str:
 async def render_context(
     request: Request,
     lang: str,
-    current_user: Optional[dict] = None,
+    current_user: Optional[User] = None,
     **extra
 ) -> dict:
     """Render template context with user info."""
     _ = make_gettext(lang)
     
-    # Get current user if not provided
+    # إذا لم يتم تمرير current_user، حاول جلبها من الطلب
     if current_user is None:
-        # استخدام cookie مباشرة
         session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
         if session_token:
             try:
@@ -346,31 +347,29 @@ async def render_context(
                     session_service = SessionService(db)
                     session = session_service.get_session(session_token)
                     if session:
-                        from app.modules.users.services import UserService
-                        user = UserService.get_user_by_id(session.user_id)
-                        if user:
-                            current_user = {
-                                "id": user.id,
-                                "name": user.name,
-                                "email": user.email,
-                                "role": user.role,
-                                "picture": user.picture,
-                                "is_authenticated": True
-                            }
-                        else:
-                            current_user = None
-                    else:
-                        current_user = None
+                        user_service = UserService(db)
+                        user = user_service.get_user_by_id(session.user_id)
+                        if user and user.is_active:
+                            current_user = user
                 except Exception as e:
-                    print(f"Error getting session: {e}")
-                    current_user = None
+                    logger.error(f"Error getting session: {e}")
                 finally:
                     db.close()
             except Exception as e:
-                print(f"Error getting session: {e}")
-                current_user = None
-        else:
-            current_user = None
+                logger.error(f"Error getting session: {e}")
+    
+    # تحويل المستخدم إلى قاموس للقالب
+    user_dict = None
+    if current_user:
+        user_dict = {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": current_user.role,
+            "avatar_url": current_user.avatar_url,
+            "picture": current_user.avatar_url,  # للتوافق مع القالب
+            "is_authenticated": True
+        }
     
     return {
         "request": request,
@@ -380,44 +379,90 @@ async def render_context(
         "app_name": settings.APP_NAME,
         "languages": get_available_languages(),
         "debug": settings.DEBUG,
-        "current_user": current_user,
+        "current_user": user_dict,
         **extra,
     }
 
 
 # ===== Home Routes =====
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, lang: str = Depends(get_lang)):
+async def home(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Home page."""
-    ctx = await render_context(request, lang, active_page="home")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="home"
+    )
     return templates.TemplateResponse("home.html", ctx)
 
 
 @app.get("/properties", response_class=HTMLResponse)
-async def properties(request: Request, lang: str = Depends(get_lang)):
+async def properties(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Properties listing page."""
-    ctx = await render_context(request, lang, active_page="properties")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="properties"
+    )
     return templates.TemplateResponse("properties/index.html", ctx)
 
 
 @app.get("/properties/{property_id}", response_class=HTMLResponse)
-async def property_detail(request: Request, property_id: int, lang: str = Depends(get_lang)):
+async def property_detail(
+    request: Request, 
+    property_id: int, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Property detail page."""
-    ctx = await render_context(request, lang, active_page="properties")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="properties"
+    )
     return templates.TemplateResponse("properties/detail.html", ctx)
 
 
 @app.get("/favorites", response_class=HTMLResponse)
-async def favorites(request: Request, lang: str = Depends(get_lang)):
+async def favorites(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Favorites page."""
-    ctx = await render_context(request, lang, active_page="favorites")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="favorites"
+    )
     return templates.TemplateResponse("favorites.html", ctx)
 
 
 @app.get("/inquiries", response_class=HTMLResponse)
-async def inquiries(request: Request, lang: str = Depends(get_lang)):
+async def inquiries(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Inquiries page."""
-    ctx = await render_context(request, lang, active_page="inquiries")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="inquiries"
+    )
     return templates.TemplateResponse("inquiries.html", ctx)
 
 
@@ -425,22 +470,18 @@ async def inquiries(request: Request, lang: str = Depends(get_lang)):
 async def login_page(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Login page.
     Redirect to dashboard if already authenticated.
     """
     # If user is already logged in, redirect to dashboard
-    if session:
-        from app.modules.users.services import UserService
-        user = UserService.get_user_by_id(session.user_id)
-        
-        if user:
-            return RedirectResponse(
-                url=settings.get_frontend_url(settings.FRONTEND_DASHBOARD_URL),
-                status_code=status.HTTP_302_FOUND
-            )
+    if current_user:
+        return RedirectResponse(
+            url="/dashboard",
+            status_code=status.HTTP_302_FOUND
+        )
     
     # Get error/success messages from query params
     error = request.query_params.get("error")
@@ -449,6 +490,7 @@ async def login_page(
     ctx = await render_context(
         request,
         lang,
+        current_user=None,
         active_page="login",
         error=error,
         success=success
@@ -460,26 +502,16 @@ async def login_page(
 async def dashboard(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Dashboard page.
     Requires authentication.
     """
-    from app.modules.users.services import UserService
-    user = UserService.get_user_by_id(session.user_id)
-    
     ctx = await render_context(
         request,
         lang,
-        current_user={
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "picture": user.picture,
-            "is_authenticated": True
-        } if user else None,
+        current_user=current_user,
         active_page="dashboard"
     )
     return templates.TemplateResponse("dashboard/index.html", ctx)
@@ -489,17 +521,14 @@ async def dashboard(
 async def admin_panel(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Admin panel page.
     Requires authentication and admin role.
     """
-    from app.modules.users.services import UserService
-    user = UserService.get_user_by_id(session.user_id)
-    
     # Check if user has admin role
-    if not user or user.role != "admin":
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -508,14 +537,7 @@ async def admin_panel(
     ctx = await render_context(
         request,
         lang,
-        current_user={
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "picture": user.picture,
-            "is_authenticated": True
-        },
+        current_user=current_user,
         active_page="admin"
     )
     return templates.TemplateResponse("admin/index.html", ctx)
@@ -525,23 +547,13 @@ async def admin_panel(
 async def profile(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """User profile page."""
-    from app.modules.users.services import UserService
-    user = UserService.get_user_by_id(session.user_id)
-    
     ctx = await render_context(
         request,
         lang,
-        current_user={
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "picture": user.picture,
-            "is_authenticated": True
-        } if user else None,
+        current_user=current_user,
         active_page="profile"
     )
     return templates.TemplateResponse("profile.html", ctx)
@@ -551,23 +563,13 @@ async def profile(
 async def settings_page(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """User settings page."""
-    from app.modules.users.services import UserService
-    user = UserService.get_user_by_id(session.user_id)
-    
     ctx = await render_context(
         request,
         lang,
-        current_user={
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "picture": user.picture,
-            "is_authenticated": True
-        } if user else None,
+        current_user=current_user,
         active_page="settings"
     )
     return templates.TemplateResponse("settings.html", ctx)
@@ -578,28 +580,13 @@ async def settings_page(
 async def ai_chat(
     request: Request,
     lang: str = Depends(get_lang),
-    session = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """AI Chat page."""
-    user = None
-    if session:
-        from app.modules.users.services import UserService
-        user_obj = UserService.get_user_by_id(session.user_id)
-        
-        if user_obj:
-            user = {
-                "id": user_obj.id,
-                "name": user_obj.name,
-                "email": user_obj.email,
-                "role": user_obj.role,
-                "picture": user_obj.picture,
-                "is_authenticated": True
-            }
-    
     ctx = await render_context(
         request,
         lang,
-        current_user=user,
+        current_user=current_user,
         active_page="chat"
     )
     return templates.TemplateResponse("ai-chat/index.html", ctx)
@@ -651,7 +638,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == status.HTTP_401_UNAUTHORIZED:
         # Redirect to login for unauthorized access
         return RedirectResponse(
-            url=settings.get_frontend_url("/login"),
+            url="/login",
             status_code=status.HTTP_302_FOUND
         )
     
@@ -688,30 +675,66 @@ async def add_security_headers(request: Request, call_next):
 
 # ===== Static Pages =====
 @app.get("/about", response_class=HTMLResponse)
-async def about(request: Request, lang: str = Depends(get_lang)):
+async def about(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """About page."""
-    ctx = await render_context(request, lang, active_page="about")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="about"
+    )
     return templates.TemplateResponse("about.html", ctx)
 
 
 @app.get("/contact", response_class=HTMLResponse)
-async def contact(request: Request, lang: str = Depends(get_lang)):
+async def contact(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Contact page."""
-    ctx = await render_context(request, lang, active_page="contact")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="contact"
+    )
     return templates.TemplateResponse("contact.html", ctx)
 
 
 @app.get("/privacy", response_class=HTMLResponse)
-async def privacy(request: Request, lang: str = Depends(get_lang)):
+async def privacy(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Privacy policy page."""
-    ctx = await render_context(request, lang, active_page="privacy")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="privacy"
+    )
     return templates.TemplateResponse("privacy.html", ctx)
 
 
 @app.get("/terms", response_class=HTMLResponse)
-async def terms(request: Request, lang: str = Depends(get_lang)):
+async def terms(
+    request: Request, 
+    lang: str = Depends(get_lang),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Terms of service page."""
-    ctx = await render_context(request, lang, active_page="terms")
+    ctx = await render_context(
+        request, 
+        lang, 
+        current_user=current_user,
+        active_page="terms"
+    )
     return templates.TemplateResponse("terms.html", ctx)
 
 
