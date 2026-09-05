@@ -2,9 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict
 import secrets
 import logging
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from app.config.database import get_db
@@ -22,6 +23,38 @@ from app.modules.auth.dependencies import get_current_user, get_current_user_opt
 
 # إعداد التسجيل
 logger = logging.getLogger(__name__)
+
+# ✅ تخزين مؤقت للـ State (في الذاكرة)
+# في الإنتاج، استخدم Redis أو قاعدة بيانات
+_state_store: Dict[str, Dict[str, any]] = {}
+
+def store_state(state: str, data: dict = None):
+    """تخزين الـ state في الذاكرة المؤقتة."""
+    _state_store[state] = {
+        "data": data or {},
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(minutes=10)
+    }
+    logger.info(f"📦 State stored in cache: {state[:10]}...")
+
+def get_state(state: str) -> Optional[Dict]:
+    """استرجاع الـ state من الذاكرة المؤقتة."""
+    stored = _state_store.get(state)
+    if stored:
+        # التحقق من انتهاء الصلاحية
+        if datetime.utcnow() > stored["expires_at"]:
+            del _state_store[state]
+            logger.warning(f"⏰ State expired: {state[:10]}...")
+            return None
+        logger.info(f"📦 State retrieved from cache: {state[:10]}...")
+        return stored["data"]
+    return None
+
+def clear_state(state: str):
+    """حذف الـ state من الذاكرة المؤقتة."""
+    if state in _state_store:
+        del _state_store[state]
+        logger.info(f"🗑️ State cleared from cache: {state[:10]}...")
 
 # ✅ البادئة الرئيسية لتوافق مع Google
 router = APIRouter(prefix="/auth/google", tags=["Authentication"])
@@ -56,21 +89,30 @@ async def initiate_login(
         # Generate state for CSRF protection
         state = secrets.token_urlsafe(32)
         
+        # ✅ تخزين الـ state في الذاكرة المؤقتة
+        store_state(state, {
+            "ip": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent")
+        })
+        
         # Generate OAuth URL
         oauth_url = auth_service.generate_oauth_url(state)
         
-        # Store state in cookie for validation
+        # Store state in cookie for validation (طبقة أمان إضافية)
         response = Response()
         response.set_cookie(
             key="oauth_state",
             value=state,
             httponly=True,
-            secure=settings.COOKIE_SECURE,
+            secure=False,  # ✅ False للتجربة (في الإنتاج استخدم True مع HTTPS)
             samesite="lax",
-            max_age=600  # 10 minutes
+            max_age=600,  # 10 minutes
+            path="/"  # ✅ تأكد من توفر الكوكيز في جميع المسارات
         )
         
         logger.info(f"✅ Login initiated - state: {state[:10]}...")
+        logger.info(f"🍪 Cookie set: secure=False, samesite=lax, path=/")
+        logger.info(f"📦 State stored in cache: {state[:10]}...")
         
         return AuthInitResponse(
             oauth_url=oauth_url,
@@ -101,12 +143,27 @@ async def auth_callback(
     try:
         logger.info(f"📥 Received callback - code: {code[:20]}..., state: {state[:10]}...")
         
-        # Get stored state from request
-        stored_state = request.cookies.get("oauth_state")
-        logger.info(f"🍪 Stored state from cookie: {stored_state[:10] if stored_state else 'None'}...")
+        # ✅ محاولة الحصول على الـ state من الكوكيز أولاً
+        stored_state_from_cookie = request.cookies.get("oauth_state")
+        logger.info(f"🍪 Stored state from cookie: {stored_state_from_cookie[:10] if stored_state_from_cookie else 'None'}...")
+        
+        # ✅ محاولة الحصول على الـ state من التخزين المؤقت
+        stored_state_from_cache = get_state(state)
+        logger.info(f"📦 Stored state from cache: {'Found' if stored_state_from_cache else 'Not found'}")
+        
+        # ✅ استخدام أي من المصدرين
+        stored_state = stored_state_from_cookie or state  # إذا كان في الكوكيز استخدمه، وإلا استخدم state نفسه
+        
+        # ✅ إذا كان الـ state في الكوكيز ولكن ليس في التخزين المؤقت، أضفه
+        if stored_state_from_cookie and not stored_state_from_cache:
+            store_state(stored_state_from_cookie, {
+                "ip": request.client.host if request.client else None,
+                "user_agent": request.headers.get("user-agent")
+            })
+            logger.info(f"📦 State restored from cookie to cache: {stored_state_from_cookie[:10]}...")
         
         if not stored_state:
-            logger.error("❌ No stored state found in cookies")
+            logger.error("❌ No stored state found in cookies or cache")
             return RedirectResponse(
                 url="/login?error=missing_state",
                 status_code=303
@@ -140,16 +197,20 @@ async def auth_callback(
         logger.info(f"✅ Callback processed successfully for user: {result['user'].email}")
         
         # Clear the state cookie
-        response.delete_cookie("oauth_state")
+        response.delete_cookie("oauth_state", path="/")
+        
+        # ✅ حذف الـ state من التخزين المؤقت
+        clear_state(state)
         
         # Set session cookie
         response.set_cookie(
             key=settings.SESSION_COOKIE_NAME,
             value=result["session"].session_token,
             httponly=True,
-            secure=settings.COOKIE_SECURE,
+            secure=False,  # ✅ False للتجربة
             samesite="lax",
-            max_age=settings.JWT_EXPIRE_MINUTES * 60
+            max_age=settings.JWT_EXPIRE_MINUTES * 60,
+            path="/"
         )
         
         # ✅ التوجيه إلى الصفحة الرئيسية
@@ -168,7 +229,7 @@ async def auth_callback(
     except Exception as e:
         logger.error(f"❌ Unexpected error: {str(e)}")
         return RedirectResponse(
-            url=f"/login?error=authentication_failed",
+            url="/login?error=authentication_failed",
             status_code=303
         )
 
@@ -197,8 +258,9 @@ async def logout(
         # Clear cookie
         response.delete_cookie(
             key=settings.SESSION_COOKIE_NAME,
+            path="/",
             httponly=True,
-            secure=settings.COOKIE_SECURE,
+            secure=False,
             samesite="lax"
         )
         
@@ -310,6 +372,18 @@ async def auth_health_check():
             "health": "/auth/google/health"
         }
     }
+
+
+# ============ تنظيف الـ State المنتهية الصلاحية (اختياري) ============
+# يمكن تشغيل هذا في خلفية كل بضع دقائق
+def cleanup_expired_states():
+    """حذف الـ state المنتهية الصلاحية من الذاكرة المؤقتة."""
+    now = datetime.utcnow()
+    expired = [key for key, value in _state_store.items() if now > value["expires_at"]]
+    for key in expired:
+        del _state_store[key]
+    if expired:
+        logger.info(f"🧹 Cleaned up {len(expired)} expired states")
 
 
 # ============ المسارات المتوافقة مع الإصدارات السابقة (Legacy) ============
