@@ -43,9 +43,9 @@ class User(Base):
     oauth_provider = Column(String(50), nullable=True)
     oauth_id = Column(String(255), nullable=True)
     
-    # Relationships
+    # Relationships - استخدام سلسلة نصية للمسار الكامل
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    sessions = relationship("UserSession", back_populates="user", lazy="select")
+    sessions = relationship("app.modules.users.models.UserSession", back_populates="user", lazy="select")
     
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"
@@ -74,7 +74,7 @@ class UserProfile(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     
     # Relationships
-    user = relationship("User", back_populates="profile")
+    user = relationship("app.modules.users.models.User", back_populates="profile")
     
     def __repr__(self) -> str:
         return f"<UserProfile(user_id={self.user_id}, language={self.preferred_language})>"
@@ -92,8 +92,8 @@ class UserSession(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    # Relationship
-    user = relationship("User", back_populates="sessions")
+    # Relationship - استخدام سلسلة نصية للمسار الكامل
+    user = relationship("app.modules.users.models.User", back_populates="sessions")
     
     def __repr__(self) -> str:
         return f"<UserSession(id={self.id}, user_id={self.user_id}, expires_at={self.expires_at})>"
