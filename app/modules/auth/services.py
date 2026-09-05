@@ -19,7 +19,7 @@ from app.config.settings import settings
 from app.modules.auth.models import UserSession
 from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
-    GoogleJWKSResponse
+    GoogleJWKSResponse, GoogleJWK
 )
 from app.modules.users.schemas import UserCreate, UserUpdate
 from app.modules.users.services import UserService
@@ -183,14 +183,47 @@ class AuthService:
     async def _verify_id_token(self, id_token: str, access_token: str) -> GoogleUserInfo:
         """Verify Google ID token using JWKS with access_token for at_hash verification."""
         try:
-            # Get Google's JWKS
-            jwks = await self._get_google_jwks()
+            # ✅ الحصول على JWKS
+            jwks_response = await self._get_google_jwks()
 
-            # Decode and verify token
+            # ✅ استخراج الـ kid من التوكين
             unverified = jwt.get_unverified_header(id_token)
-            key = self._find_matching_key(jwks, unverified["kid"])
+            kid = unverified.get("kid")
+            
+            if not kid:
+                logger.error("❌ No kid in token header")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid ID token: missing kid"
+                )
 
-            # Verify token with access_token for at_hash
+            # ✅ البحث عن المفتاح المناسب في قائمة المفاتيح
+            key_data = None
+            for key in jwks_response.keys:
+                if key.kid == kid:  # ✅ استخدام الخاصية مباشرة
+                    # ✅ تحويل الكائن إلى قاموس
+                    key_data = {
+                        "kty": key.kty,
+                        "kid": key.kid,
+                        "use": key.use,
+                        "alg": key.alg,
+                        "n": key.n,
+                        "e": key.e
+                    }
+                    break
+
+            if not key_data:
+                logger.error(f"❌ No matching JWK found for kid: {kid}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="No matching JWK found"
+                )
+
+            # ✅ تحويل المفتاح إلى تنسيق JWK باستخدام jose
+            from jose import jwk
+            key = jwk.construct(key_data)
+
+            # ✅ التحقق من التوكين
             claims = jwt.decode(
                 id_token,
                 key,
@@ -232,6 +265,7 @@ class AuthService:
                 )
 
             return GoogleJWKSResponse(**response.json())
+            
         except httpx.TimeoutException:
             logger.error("❌ JWKS fetch timeout")
             raise HTTPException(
@@ -244,16 +278,6 @@ class AuthService:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Unable to fetch Google JWKS: {str(e)}"
             )
-
-    def _find_matching_key(self, jwks: GoogleJWKSResponse, kid: str) -> Dict[str, Any]:
-        """Find matching key from JWKS by kid."""
-        for key in jwks.keys:
-            if key.get("kid") == kid:
-                return key
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No matching JWK found"
-        )
 
     async def _get_or_create_user(self, user_info: GoogleUserInfo) -> Any:
         """Get or create user from Google user info."""
