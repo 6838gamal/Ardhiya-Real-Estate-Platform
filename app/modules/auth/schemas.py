@@ -1,7 +1,7 @@
 """Auth module Pydantic schemas."""
-from datetime import datetime
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime, timezone
+from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ============ OAuth Schemas ============
@@ -34,8 +34,7 @@ class AuthUserResponse(BaseModel):
     role: str
     picture: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class LogoutResponse(BaseModel):
@@ -47,8 +46,6 @@ class LogoutResponse(BaseModel):
 class SessionResponse(BaseModel):
     """Session information response."""
     user_id: int
-    #provider: str
-   # provider_user_id: str
     expires_at: datetime
     created_at: datetime
 
@@ -78,12 +75,12 @@ class TokenResponse(BaseModel):
 
 
 class GoogleTokenExchange(BaseModel):
-    """Request data for Google OAuth token exchange."""
+    """Request data for Google OAuth token exchange (Backend only)."""
     code: str
-    client_id: str
-    client_secret: str
     redirect_uri: str
     grant_type: str = "authorization_code"
+    # ملاحظة: client_id و client_secret تؤخذ من متغيرات البيئة في الـ backend
+    # ولا ترسل من frontend لأسباب أمنية
 
 
 class GoogleJWK(BaseModel):
@@ -98,7 +95,7 @@ class GoogleJWK(BaseModel):
 
 class GoogleJWKSResponse(BaseModel):
     """Google JWKS response."""
-    keys: list[Dict[str, Any]]
+    keys: list[GoogleJWK]
 
 
 # ============ Session Schemas ============
@@ -106,7 +103,6 @@ class GoogleJWKSResponse(BaseModel):
 class SessionCreate(BaseModel):
     """Create session request."""
     user_id: int
-    #provider_user_id: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
 
@@ -123,8 +119,16 @@ class TokenPayload(BaseModel):
     """JWT token payload."""
     sub: str
     role: str
-    exp: datetime
-    iat: datetime
+    exp: datetime = Field(..., description="Expiration time (UTC)")
+    iat: datetime = Field(..., description="Issued at time (UTC)")
+
+    @field_validator("exp", "iat", mode="before")
+    @classmethod
+    def ensure_utc(cls, v):
+        """Ensure datetime has UTC timezone."""
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 
 class TokenData(BaseModel):
@@ -140,6 +144,7 @@ class AuthErrorResponse(BaseModel):
     success: bool = False
     detail: str
     error_code: Optional[str] = None
+    status_code: Optional[int] = None
 
 
 # ============ Update forward references ============
