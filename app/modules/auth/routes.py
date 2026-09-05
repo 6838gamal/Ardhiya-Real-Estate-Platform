@@ -19,7 +19,13 @@ from app.modules.auth.schemas import (
     LogoutResponse,
     SessionResponse,
 )
-from app.modules.auth.dependencies import get_current_user, get_current_user_optional
+from app.modules.auth.dependencies import (
+    get_current_user,
+    get_current_user_optional,
+    get_current_user_session_dep,
+    get_current_user_session_required
+)
+from app.modules.users.models import User
 
 # إعداد التسجيل
 logger = logging.getLogger(__name__)
@@ -275,7 +281,7 @@ async def logout(
 
 @router.get("/session", response_model=Optional[SessionResponse])
 async def get_session_info(
-    session = Depends(get_current_user_optional)
+    session = Depends(get_current_user_session_dep)
 ):
     """
     Get current session information.
@@ -285,7 +291,6 @@ async def get_session_info(
     if not session:
         return None
     
-    # ✅ استخدام الأعمدة الموجودة فقط
     return SessionResponse(
         user_id=session.user_id,
         expires_at=session.expires_at,
@@ -295,7 +300,7 @@ async def get_session_info(
 
 @router.post("/session/extend", response_model=SessionResponse)
 async def extend_session(
-    session = Depends(get_current_user),
+    session = Depends(get_current_user_session_required),
     session_service: SessionService = Depends(get_session_service)
 ):
     """
@@ -315,7 +320,6 @@ async def extend_session(
         # Refresh session
         session = session_service.get_session(session.token)
         
-        # ✅ استخدام الأعمدة الموجودة فقط
         return SessionResponse(
             user_id=session.user_id,
             expires_at=session.expires_at,
@@ -333,7 +337,7 @@ async def extend_session(
 
 @router.post("/session/revoke-all", response_model=dict)
 async def revoke_all_sessions(
-    session = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service)
 ):
     """
@@ -342,7 +346,7 @@ async def revoke_all_sessions(
     Requires authentication. All other sessions will be invalidated.
     """
     try:
-        count = session_service.revoke_all_user_sessions(session.user_id)
+        count = session_service.revoke_all_user_sessions(user.id)
         
         return {
             "success": True,
@@ -421,7 +425,7 @@ async def legacy_logout(
 
 @legacy_router.get("/session")
 async def legacy_session(
-    session = Depends(get_current_user_optional)
+    session = Depends(get_current_user_session_dep)
 ):
     """Legacy session endpoint."""
     return await get_session_info(session)
@@ -429,7 +433,7 @@ async def legacy_session(
 
 @legacy_router.post("/session/extend")
 async def legacy_extend_session(
-    session = Depends(get_current_user),
+    session = Depends(get_current_user_session_required),
     session_service: SessionService = Depends(get_session_service)
 ):
     """Legacy extend session endpoint."""
@@ -438,11 +442,11 @@ async def legacy_extend_session(
 
 @legacy_router.post("/session/revoke-all")
 async def legacy_revoke_all_sessions(
-    session = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service)
 ):
     """Legacy revoke all sessions endpoint."""
-    return await revoke_all_sessions(session, session_service)
+    return await revoke_all_sessions(user, session_service)
 
 
 @legacy_router.get("/health")
