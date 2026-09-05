@@ -68,7 +68,7 @@ class AuthService:
         # Create session
         session = self.session_service.create_session(
             user_id=user.id,
-            provider_user_id=user_info.sub,
+           # provider_user_id=user_info.sub,
             ip_address=ip_address,
             user_agent=user_agent
         )
@@ -234,7 +234,7 @@ class SessionService:
             user_id=user_id,
             token=signed_token,
            # provider="google",
-            provider_user_id=provider_user_id,
+           # provider_user_id=provider_user_id,
             expires_at=expires_at,
             ip_address=ip_address,
             user_agent=user_agent,
