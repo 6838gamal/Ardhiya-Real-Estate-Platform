@@ -20,8 +20,8 @@ class UserSession(Base):
    # provider_user_id = Column(String(255), nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)  # ✅ أضفت timezone=True
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)  # ✅ أضفت timezone=True
-    ip_address = Column(String(45), nullable=True)
-    user_agent = Column(Text, nullable=True)
+   # ip_address = Column(String(45), nullable=True)
+   # user_agent = Column(Text, nullable=True)
     is_revoked = Column(Boolean, default=False, nullable=False)  # ✅ غيرت من Integer إلى Boolean
 
     # Relationships
