@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.config.settings import settings
-from app.modules.auth.models import UserSession  # ✅ استيراد من auth.models
+from app.modules.auth.models import UserSession
 from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
     GoogleJWKSResponse
@@ -59,8 +59,8 @@ class AuthService:
         # Exchange code for tokens
         tokens = await self._exchange_code_for_tokens(code)
 
-        # Verify ID token
-        user_info = await self._verify_id_token(tokens.id_token)
+        # ✅ Verify ID token with access_token
+        user_info = await self._verify_id_token(tokens.id_token, tokens.access_token)
 
         # Create or update user
         user = await self._get_or_create_user(user_info)
@@ -102,8 +102,8 @@ class AuthService:
 
         return TokenResponse(**response.json())
 
-    async def _verify_id_token(self, id_token: str) -> GoogleUserInfo:
-        """Verify Google ID token using JWKS."""
+    async def _verify_id_token(self, id_token: str, access_token: str) -> GoogleUserInfo:
+        """Verify Google ID token using JWKS with access_token for at_hash verification."""
         try:
             # Get Google's JWKS
             jwks = await self._get_google_jwks()
@@ -112,13 +112,14 @@ class AuthService:
             unverified = jwt.get_unverified_header(id_token)
             key = self._find_matching_key(jwks, unverified["kid"])
 
-            # Verify token
+            # ✅ Verify token with access_token for at_hash
             claims = jwt.decode(
                 id_token,
                 key,
                 algorithms=["RS256"],
                 audience=settings.GOOGLE_CLIENT_ID,
-                issuer="https://accounts.google.com"
+                issuer="https://accounts.google.com",
+                access_token=access_token  # ✅ إضافة access_token للتحقق من at_hash
             )
 
             return GoogleUserInfo(**claims)
@@ -206,7 +207,7 @@ class SessionService:
 
         session = UserSession(
             user_id=user_id,
-            token=signed_token,  # ✅ استخدام 'token' بدلاً من 'session_token'
+            token=signed_token,
             provider="google",
             provider_user_id=provider_user_id,
             expires_at=expires_at,
@@ -230,8 +231,8 @@ class SessionService:
             return None
 
         session = self.db.query(UserSession).filter(
-            UserSession.token == token,  # ✅ استخدام 'token' بدلاً من 'session_token'
-            UserSession.is_revoked == False  # ✅ Boolean بدلاً من 0
+            UserSession.token == token,
+            UserSession.is_revoked == False
         ).first()
 
         if not session or session.is_expired():
@@ -248,7 +249,7 @@ class SessionService:
         if not session:
             return False
 
-        session.is_revoked = True  # ✅ Boolean بدلاً من 1
+        session.is_revoked = True
         self.db.commit()
         return True
 
@@ -256,11 +257,11 @@ class SessionService:
         """Revoke all sessions for a user."""
         sessions = self.db.query(UserSession).filter(
             UserSession.user_id == user_id,
-            UserSession.is_revoked == False  # ✅ Boolean بدلاً من 0
+            UserSession.is_revoked == False
         ).all()
 
         for session in sessions:
-            session.is_revoked = True  # ✅ Boolean بدلاً من 1
+            session.is_revoked = True
 
         self.db.commit()
         return len(sessions)
