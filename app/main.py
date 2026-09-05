@@ -33,7 +33,7 @@ from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
 from app.modules.auth.dependencies import get_current_user_optional, get_current_user
 from app.modules.auth.services import AuthService, SessionService
-from app.config.database import get_db, engine
+from app.config.database import get_db, engine, SessionLocal, Base
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -58,20 +58,16 @@ async def run_migrations():
         # الحصول على DATABASE_URL من متغيرات البيئة أو الإعدادات
         db_url = original_db_url
         if not db_url:
-            db_url = settings.DATABASE_URL
-        
-        # تحويل URL من asyncpg إلى psycopg2 لـ Alembic
-        # Alembic لا يدعم asyncpg، لذلك نحتاج إلى استخدام psycopg2
-        sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+            db_url = settings.database_url
         
         # طباعة معلومات للتتبع (مع إخفاء كلمة المرور)
-        if '@' in sync_url:
-            parts = sync_url.split('@')
+        if '@' in db_url:
+            parts = db_url.split('@')
             if len(parts) > 1:
                 print(f"📊 استخدام قاعدة البيانات (لـ Alembic): {parts[1]}")
         
         # تعيين DATABASE_URL في متغيرات البيئة ليستخدمها alembic.ini
-        os.environ["DATABASE_URL"] = sync_url
+        os.environ["DATABASE_URL"] = db_url
         
         # الحصول على مسار المشروع
         project_dir = os.getcwd()
@@ -122,115 +118,121 @@ async def run_migrations():
                 return True
             else:
                 print(f"⚠️ فشل تشغيل الترحيلات: {error_msg}")
-                # لا نوقف التطبيق، نكمل بـ ensure_database_schema
                 return False
             
     except subprocess.CalledProcessError as e:
         print(f"⚠️ خطأ في تشغيل الترحيلات (قد تكون الترحيلات مطبقة بالفعل): {e.stderr if e.stderr else str(e)}")
-        # استعادة URL الأصلي
         if original_db_url:
             os.environ["DATABASE_URL"] = original_db_url
         return False
     except Exception as e:
         print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
-        # استعادة URL الأصلي
         if original_db_url:
             os.environ["DATABASE_URL"] = original_db_url
-        # نكمل التطبيق ولا نوقفه
         return False
 
 
-async def ensure_database_schema():
+def ensure_database_schema():
     """
     التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات
-    
-    هذه الدالة تضيف الأعمدة المفقودة في الجداول الموجودة
-    لتجنب أخطاء SQLAlchemy عند تشغيل التطبيق.
     """
     print("🔧 جاري التحقق من هيكل قاعدة البيانات...")
     
+    db = SessionLocal()
     try:
         from sqlalchemy import text
-        from app.config.database import get_db
         
-        async for db in get_db():
-            try:
-                # هنا يمكن إضافة فحوصات للأعمدة المفقودة حسب الحاجة
-                # مثال: التحقق من وجود عمود معين في جدول users
-                await db.execute(text("""
-                    DO $$
-                    BEGIN
-                        -- يمكن إضافة فحوصات للأعمدة المفقودة هنا
-                        -- مثال:
-                        -- IF NOT EXISTS (
-                        --     SELECT 1 FROM information_schema.columns 
-                        --     WHERE table_name = 'users' AND column_name = 'avatar_url'
-                        -- ) THEN
-                        --     ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500);
-                        -- END IF;
-                    END $$;
-                """))
-                
-                await db.commit()
-                print("✅ تم التحقق من هيكل قاعدة البيانات بنجاح")
-                break
-            except Exception as e:
-                print(f"⚠️ خطأ في التحقق من هيكل قاعدة البيانات: {str(e)}")
-                await db.rollback()
-                break
+        # التحقق من وجود جدول users
+        result = db.execute(text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')"
+        )).scalar()
+        
+        if result:
+            print("✅ جدول 'users' موجود")
+            
+            # التحقق من الأعمدة المطلوبة في جدول users
+            columns_to_check = ['avatar_url', 'phone', 'bio', 'last_login', 'updated_at']
+            for col in columns_to_check:
+                exists = db.execute(text(
+                    f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = '{col}')"
+                )).scalar()
+                if not exists:
+                    print(f"⚠️ العمود '{col}' غير موجود في جدول users، جاري الإضافة...")
+                    db.execute(text(f"ALTER TABLE users ADD COLUMN {col} VARCHAR(500)"))
+                    db.commit()
+                    print(f"✅ تم إضافة العمود '{col}'")
+        
+        # التحقق من جدول user_profiles
+        result = db.execute(text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_profiles')"
+        )).scalar()
+        
+        if result:
+            print("✅ جدول 'user_profiles' موجود")
+            
+            # التحقق من الأعمدة المطلوبة
+            columns_to_check = ['preferred_language', 'preferred_currency', 'notifications_enabled', 'marketing_emails', 'updated_at']
+            for col in columns_to_check:
+                exists = db.execute(text(
+                    f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_profiles' AND column_name = '{col}')"
+                )).scalar()
+                if not exists:
+                    print(f"⚠️ العمود '{col}' غير موجود في جدول user_profiles، جاري الإضافة...")
+                    db.execute(text(f"ALTER TABLE user_profiles ADD COLUMN {col} VARCHAR(50)"))
+                    db.commit()
+                    print(f"✅ تم إضافة العمود '{col}'")
+        
+        print("✅ تم التحقق من هيكل قاعدة البيانات بنجاح")
+        
     except Exception as e:
-        print(f"⚠️ خطأ في الاتصال بقاعدة البيانات: {str(e)}")
+        print(f"⚠️ خطأ في التحقق من هيكل قاعدة البيانات: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
 
 
-async def init_database():
+def init_database():
     """تهيئة قاعدة البيانات وإنشاء المستخدمين الأوليين إذا لزم الأمر."""
     print("🌱 جاري تهيئة قاعدة البيانات...")
     
+    db = SessionLocal()
     try:
         from app.modules.users.services import UserService
         from app.modules.users.models import User
-        from app.modules.auth.services import AuthService
-        from app.config.database import get_db
-        from app.modules.auth.models import Session as SessionModel
         from sqlalchemy import select
         
-        async for db in get_db():
-            try:
-                # التحقق من وجود مستخدمين
-                stmt = select(User)
-                result = await db.execute(stmt)
-                users = result.scalars().all()
-                
-                if len(users) == 0:
-                    print("📝 لا يوجد مستخدمين. جاري إنشاء المستخدم الافتراضي...")
-                    
-                    # إنشاء مستخدم مدير افتراضي
-                    from app.modules.auth.security import get_password_hash
-                    
-                    admin_user = User(
-                        name="مدير النظام",
-                        email="admin@ardiya.com",
-                        password_hash=get_password_hash("Admin@123"),
-                        role="admin",
-                        is_active=True,
-                        is_verified=True
-                    )
-                    db.add(admin_user)
-                    await db.commit()
-                    print("✅ تم إنشاء المستخدم الافتراضي (admin@ardiya.com / Admin@123)")
-                else:
-                    print(f"ℹ️ يوجد {len(users)} مستخدم في النظام")
-                
-                print("✅ تم تهيئة قاعدة البيانات بنجاح")
-                break
-                
-            except Exception as e:
-                print(f"❌ خطأ في تهيئة قاعدة البيانات: {str(e)}")
-                await db.rollback()
-                break
-                
+        # التحقق من وجود مستخدمين
+        stmt = select(User)
+        result = db.execute(stmt)
+        users = result.scalars().all()
+        
+        if len(users) == 0:
+            print("📝 لا يوجد مستخدمين. جاري إنشاء المستخدم الافتراضي...")
+            
+            # إنشاء مستخدم مدير افتراضي
+            from app.modules.auth.security import get_password_hash
+            
+            admin_user = User(
+                name="مدير النظام",
+                email="admin@ardiya.com",
+                password_hash=get_password_hash("Admin@123"),
+                role="admin",
+                is_active=True,
+                is_verified=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ تم إنشاء المستخدم الافتراضي (admin@ardiya.com / Admin@123)")
+        else:
+            print(f"ℹ️ يوجد {len(users)} مستخدم في النظام")
+        
+        print("✅ تم تهيئة قاعدة البيانات بنجاح")
+        
     except Exception as e:
         print(f"❌ خطأ في تهيئة قاعدة البيانات: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 # ============================================================
@@ -241,29 +243,27 @@ async def init_database():
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
-    
-    يتم تشغيل هذا الكود عند بدء التطبيق وإيقافه.
-    الترتيب:
-    1. تنظيف الجلسات منتهية الصلاحية
-    2. تشغيل ترحيلات Alembic (تحديث هيكل قاعدة البيانات)
-    3. التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
-    4. تهيئة البيانات الأساسية (المستخدمين)
-    5. إغلاق اتصال قاعدة البيانات عند الإيقاف
     """
     print("🚀 Starting application...")
-    print(f"📊 Database: {settings.DATABASE_URL}")
+    print(f"📊 Database: {settings.database_url}")
     
     # ============================================================
-    # الخطوة 0: تنظيف الجلسات منتهية الصلاحية
+    # الخطوة 0: تنظيف الجلسات منتهية الصلاحية (مع تجاهل الأخطاء)
     # ============================================================
+    db = SessionLocal()
     try:
-        db = next(get_db())
         session_service = SessionService(db)
         expired_count = session_service.cleanup_expired_sessions()
         if expired_count > 0:
             print(f"🧹 تم تنظيف {expired_count} جلسة منتهية الصلاحية")
     except Exception as e:
-        print(f"⚠️ خطأ في تنظيف الجلسات: {e}")
+        # تجاهل الخطأ إذا كان الجدول غير موجود
+        if "relation" in str(e).lower() and "does not exist" in str(e).lower():
+            print("ℹ️ جدول الجلسات غير موجود بعد، سيتم إنشاؤه في الترحيلات")
+        else:
+            print(f"⚠️ خطأ في تنظيف الجلسات: {e}")
+    finally:
+        db.close()
     
     # ============================================================
     # الخطوة 1: تشغيل ترحيلات Alembic
@@ -271,14 +271,14 @@ async def lifespan(app: FastAPI):
     await run_migrations()
     
     # ============================================================
-    # الخطوة 2: التحقق من هيكل قاعدة البيانات (إضافة الأعمدة المفقودة)
+    # الخطوة 2: التحقق من هيكل قاعدة البيانات
     # ============================================================
-    await ensure_database_schema()
+    ensure_database_schema()
     
     # ============================================================
-    # الخطوة 3: تهيئة قاعدة البيانات (المستخدمين)
+    # الخطوة 3: تهيئة قاعدة البيانات
     # ============================================================
-    await init_database()
+    init_database()
     
     print("✅ التطبيق جاهز للاستخدام!")
     yield
@@ -289,7 +289,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Shutting down application...")
     
     # إغلاق اتصال قاعدة البيانات عند الإيقاف
-    await engine.dispose()
+    engine.dispose()
     print("✅ Database connection closed.")
 
 
@@ -337,29 +337,35 @@ async def render_context(
     
     # Get current user if not provided
     if current_user is None:
-        # استخدام cookie مباشرة بدلاً من get_current_user_optional
+        # استخدام cookie مباشرة
         session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
         if session_token:
             try:
-                db = next(get_db())
-                session_service = SessionService(db)
-                session = session_service.get_session(session_token)
-                if session:
-                    from app.modules.users.services import UserService
-                    user = UserService.get_user_by_id(session.user_id)
-                    if user:
-                        current_user = {
-                            "id": user.id,
-                            "name": user.name,
-                            "email": user.email,
-                            "role": user.role,
-                            "picture": user.picture,
-                            "is_authenticated": True
-                        }
+                db = SessionLocal()
+                try:
+                    session_service = SessionService(db)
+                    session = session_service.get_session(session_token)
+                    if session:
+                        from app.modules.users.services import UserService
+                        user = UserService.get_user_by_id(session.user_id)
+                        if user:
+                            current_user = {
+                                "id": user.id,
+                                "name": user.name,
+                                "email": user.email,
+                                "role": user.role,
+                                "picture": user.picture,
+                                "is_authenticated": True
+                            }
+                        else:
+                            current_user = None
                     else:
                         current_user = None
-                else:
+                except Exception as e:
+                    print(f"Error getting session: {e}")
                     current_user = None
+                finally:
+                    db.close()
             except Exception as e:
                 print(f"Error getting session: {e}")
                 current_user = None
