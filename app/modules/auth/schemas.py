@@ -103,8 +103,8 @@ class GoogleJWKSResponse(BaseModel):
 class SessionCreate(BaseModel):
     """Create session request."""
     user_id: int
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    #ip_address: Optional[str] = None
+   # user_agent: Optional[str] = None
 
 
 class SessionUpdate(BaseModel):
