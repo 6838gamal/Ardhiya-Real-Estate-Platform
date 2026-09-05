@@ -59,7 +59,7 @@ class AuthService:
         # Exchange code for tokens
         tokens = await self._exchange_code_for_tokens(code)
 
-        # ✅ Verify ID token with access_token
+        # Verify ID token with access_token
         user_info = await self._verify_id_token(tokens.id_token, tokens.access_token)
 
         # Create or update user
@@ -112,14 +112,14 @@ class AuthService:
             unverified = jwt.get_unverified_header(id_token)
             key = self._find_matching_key(jwks, unverified["kid"])
 
-            # ✅ Verify token with access_token for at_hash
+            # Verify token with access_token for at_hash
             claims = jwt.decode(
                 id_token,
                 key,
                 algorithms=["RS256"],
                 audience=settings.GOOGLE_CLIENT_ID,
                 issuer="https://accounts.google.com",
-                access_token=access_token  # ✅ إضافة access_token للتحقق من at_hash
+                access_token=access_token
             )
 
             return GoogleUserInfo(**claims)
@@ -157,28 +157,53 @@ class AuthService:
 
     async def _get_or_create_user(self, user_info: GoogleUserInfo) -> Any:
         """Get or create user from Google user info."""
-        user = self.user_service.get_user_by_provider_id(
-            provider="google",
-            provider_user_id=user_info.sub
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # ✅ البحث عن المستخدم بواسطة oauth_id
+        user = self.user_service.get_user_by_oauth_id(
+            oauth_id=user_info.sub,
+            oauth_provider="google"
         )
-
+        
+        # ✅ إذا لم يتم العثور، حاول البحث بالبريد الإلكتروني
         if not user:
+            user = self.user_service.get_user_by_email(user_info.email)
+            if user:
+                # ✅ تحديث oauth_id للمستخدم الموجود
+                user.oauth_id = user_info.sub
+                user.oauth_provider = "google"
+                self.db.commit()
+                self.db.refresh(user)
+                logger.info(f"✅ Updated existing user with OAuth ID: {user_info.email}")
+        
+        if not user:
+            # ✅ إنشاء مستخدم جديد
             user_data = UserCreate(
                 email=user_info.email,
                 name=user_info.name or user_info.given_name or user_info.email,
-                provider="google",
-                provider_user_id=user_info.sub,
+                oauth_provider="google",
+                oauth_id=user_info.sub,
                 is_active=True,
                 is_verified=True
             )
             user = self.user_service.create_user(user_data)
-
-        # Update user info if needed
-        if user.name != user_info.name and user_info.name:
-            user.name = user_info.name
-            self.db.commit()
-            self.db.refresh(user)
-
+            logger.info(f"✅ Created new user: {user_info.email}")
+        else:
+            # ✅ تحديث معلومات المستخدم إذا كانت مختلفة
+            updated = False
+            if user.name != user_info.name and user_info.name:
+                user.name = user_info.name
+                updated = True
+            if user.oauth_id != user_info.sub:
+                user.oauth_id = user_info.sub
+                user.oauth_provider = "google"
+                updated = True
+            if updated:
+                self.db.commit()
+                self.db.refresh(user)
+                logger.info(f"✅ Updated user info: {user_info.email}")
+        
         return user
 
 
