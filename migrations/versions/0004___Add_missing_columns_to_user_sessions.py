@@ -9,6 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect, text
 
+from typing import Union  # ✅ إضافة هذا السطر
+
 # revision identifiers, used by Alembic.
 revision: str = '0004'
 down_revision: Union[str, None] = '0003'
