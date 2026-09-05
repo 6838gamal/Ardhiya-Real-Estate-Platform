@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect, text
 
-from typing import Union  # ✅ إضافة هذا السطر
+from typing import Union , Sequence # ✅ إضافة هذا السطر
 
 # revision identifiers, used by Alembic.
 revision: str = '0004'
