@@ -1,95 +1,94 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 from typing import List, Optional
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-class Settings(BaseSettings):
+class Settings:
     """
     Application settings loaded from environment variables.
     All settings should be defined in .env file.
     """
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        case_sensitive=False
-    )
 
-    # ===== Application =====
-    APP_NAME: str = "أرضية"
-    APP_ENV: str = "development"
-    DEBUG: bool = True
-    SECRET_KEY: str  # Required - must be set in .env
+    def __init__(self):
+        # ===== Application =====
+        self.APP_NAME: str = os.getenv("APP_NAME", "أرضية")
+        self.APP_ENV: str = os.getenv("APP_ENV", "development")
+        self.DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+        self.SECRET_KEY: str = os.getenv("SECRET_KEY", "")  # Required - must be set in .env
 
-    # ===== Database =====
-    DB_USER: str = "ardiya"
-    DB_PASSWORD: str = "ardiya_secret"
-    DB_HOST: str = "db"
-    DB_PORT: str = "5432"
-    DB_NAME: str = "ardiya_db"
-    DATABASE_URL: Optional[str] = None
+        # ===== Database =====
+        self.DB_USER: str = os.getenv("DB_USER", "ardiya")
+        self.DB_PASSWORD: str = os.getenv("DB_PASSWORD", "ardiya_secret")
+        self.DB_HOST: str = os.getenv("DB_HOST", "db")
+        self.DB_PORT: str = os.getenv("DB_PORT", "5432")
+        self.DB_NAME: str = os.getenv("DB_NAME", "ardiya_db")
+        self.DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
 
-    # ===== Localization =====
-    DEFAULT_LANGUAGE: str = "ar"
-    SUPPORTED_LANGUAGES: str = "ar,en"
+        # ===== Localization =====
+        self.DEFAULT_LANGUAGE: str = os.getenv("DEFAULT_LANGUAGE", "ar")
+        self.SUPPORTED_LANGUAGES: str = os.getenv("SUPPORTED_LANGUAGES", "ar,en")
 
-    # ===== Google OAuth =====
-    GOOGLE_CLIENT_ID: str  # Required - must be set in .env
-    GOOGLE_CLIENT_SECRET: str  # Required - must be set in .env
-    GOOGLE_REDIRECT_URI: str 
+        # ===== Google OAuth =====
+        self.GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")  # Required - must be set in .env
+        self.GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")  # Required - must be set in .env
+        self.GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "")
 
-    # ===== JWT =====
-    JWT_SECRET: Optional[str] = None  # If not set, uses SECRET_KEY
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 1440  # 24 hours
+        # ===== JWT =====
+        self.JWT_SECRET: Optional[str] = os.getenv("JWT_SECRET")  # If not set, uses SECRET_KEY
+        self.JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+        self.JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
 
-    # ===== Session =====
-    SESSION_COOKIE_NAME: str = "ardiya_session"
-    SESSION_EXPIRE_MINUTES: int = 1440  # 24 hours
-    COOKIE_SECURE: bool = False  # Set to True in production (HTTPS)
-    COOKIE_SAMESITE: str = "lax"
-    COOKIE_HTTPONLY: bool = True
+        # ===== Session =====
+        self.SESSION_COOKIE_NAME: str = os.getenv("SESSION_COOKIE_NAME", "ardiya_session")
+        self.SESSION_EXPIRE_MINUTES: int = int(os.getenv("SESSION_EXPIRE_MINUTES", "1440"))  # 24 hours
+        self.COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "False").lower() == "true"  # Set to True in production (HTTPS)
+        self.COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE", "lax")
+        self.COOKIE_HTTPONLY: bool = os.getenv("COOKIE_HTTPONLY", "True").lower() == "true"
 
-    # ===== CSRF =====
-    CSRF_SECRET: Optional[str] = None  # If not set, uses SECRET_KEY
-    CSRF_EXPIRE_MINUTES: int = 60  # 1 hour
+        # ===== CSRF =====
+        self.CSRF_SECRET: Optional[str] = os.getenv("CSRF_SECRET")  # If not set, uses SECRET_KEY
+        self.CSRF_EXPIRE_MINUTES: int = int(os.getenv("CSRF_EXPIRE_MINUTES", "60"))  # 1 hour
 
-    # ===== Security =====
-    BCRYPT_ROUNDS: int = 12
-    RATE_LIMIT_REQUESTS: int = 100
-    RATE_LIMIT_PERIOD: int = 60  # seconds
+        # ===== Security =====
+        self.BCRYPT_ROUNDS: int = int(os.getenv("BCRYPT_ROUNDS", "12"))
+        self.RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+        self.RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "60"))  # seconds
 
-    # ===== CORS =====
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
-    ALLOWED_METHODS: str = "GET,POST,PUT,DELETE,OPTIONS"
-    ALLOWED_HEADERS: str = "Content-Type,Authorization"
+        # ===== CORS =====
+        self.ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+        self.ALLOWED_METHODS: str = os.getenv("ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS")
+        self.ALLOWED_HEADERS: str = os.getenv("ALLOWED_HEADERS", "Content-Type,Authorization")
 
-    # ===== Frontend =====
-    FRONTEND_URL: str = "http://localhost:3000"
-    FRONTEND_LOGIN_URL: str = "/login"
-    FRONTEND_DASHBOARD_URL: str = "/dashboard"
+        # ===== Frontend =====
+        self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        self.FRONTEND_LOGIN_URL: str = os.getenv("FRONTEND_LOGIN_URL", "/login")
+        self.FRONTEND_DASHBOARD_URL: str = os.getenv("FRONTEND_DASHBOARD_URL", "/dashboard")
 
-    # ===== API =====
-    API_VERSION: str = "v1"
-    API_PREFIX: str = "/api/v1"
+        # ===== API =====
+        self.API_VERSION: str = os.getenv("API_VERSION", "v1")
+        self.API_PREFIX: str = os.getenv("API_PREFIX", "/api/v1")
 
-    # ===== Logging =====
-    LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"  # json or text
+        # ===== Logging =====
+        self.LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+        self.LOG_FORMAT: str = os.getenv("LOG_FORMAT", "json")  # json or text
 
-    # ===== Cache (Optional) =====
-    REDIS_URL: Optional[str] = None
-    CACHE_TTL: int = 300  # 5 minutes
+        # ===== Cache (Optional) =====
+        self.REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
+        self.CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))  # 5 minutes
 
-    # ===== Email (Optional) =====
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAIL_FROM: Optional[str] = None
+        # ===== Email (Optional) =====
+        self.SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+        self.SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
+        self.SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
+        self.EMAIL_FROM: Optional[str] = os.getenv("EMAIL_FROM")
 
     # ===== Properties =====
     @property
