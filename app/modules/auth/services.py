@@ -65,12 +65,12 @@ class AuthService:
         # Create or update user
         user = await self._get_or_create_user(user_info)
 
-        # Create session
+        # ✅ Create session (provider_user_id اختياري)
         session = self.session_service.create_session(
             user_id=user.id,
-           # provider_user_id=user_info.sub,
             ip_address=ip_address,
             user_agent=user_agent
+            # ✅ لا نمرر provider_user_id لأنه غير موجود في قاعدة البيانات
         )
 
         return {
@@ -217,9 +217,14 @@ class SessionService:
             salt="session-token"
         )
 
-    def create_session(self, user_id: int, provider_user_id: str,
-                       ip_address: Optional[str] = None,
-                       user_agent: Optional[str] = None) -> UserSession:
+    # ✅ جعل provider_user_id اختيارياً (Optional)
+    def create_session(
+        self, 
+        user_id: int, 
+        provider_user_id: Optional[str] = None,  # ← اختياري
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> UserSession:
         """Create a new session."""
         # Generate session token
         raw_token = secrets.token_urlsafe(32)
@@ -233,8 +238,7 @@ class SessionService:
         session = UserSession(
             user_id=user_id,
             token=signed_token,
-           # provider="google",
-           # provider_user_id=provider_user_id,
+            # ✅ لا نستخدم provider أو provider_user_id
             expires_at=expires_at,
             ip_address=ip_address,
             user_agent=user_agent,
