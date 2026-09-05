@@ -43,9 +43,9 @@ class User(Base):
     oauth_provider = Column(String(50), nullable=True)
     oauth_id = Column(String(255), nullable=True)
     
-    # Relationships - استخدام سلسلة نصية للمسار الكامل
+    # Relationships
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    sessions = relationship("app.modules.users.models.UserSession", back_populates="user", lazy="select")
+    sessions = relationship("UserSession", back_populates="user", lazy="select")
     
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"
@@ -74,29 +74,10 @@ class UserProfile(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     
     # Relationships
-    user = relationship("app.modules.users.models.User", back_populates="profile")
+    user = relationship("User", back_populates="profile")
     
     def __repr__(self) -> str:
         return f"<UserProfile(user_id={self.user_id}, language={self.preferred_language})>"
-
-
-class UserSession(Base):
-    """User session model for storing active sessions."""
-    
-    __tablename__ = "user_sessions"
-    __table_args__ = {"extend_existing": True}
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token = Column(String(255), unique=True, nullable=False, index=True)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
-    # Relationship - استخدام سلسلة نصية للمسار الكامل
-    user = relationship("app.modules.users.models.User", back_populates="sessions")
-    
-    def __repr__(self) -> str:
-        return f"<UserSession(id={self.id}, user_id={self.user_id}, expires_at={self.expires_at})>"
 
 
 # Indexes for performance
@@ -104,5 +85,3 @@ Index("idx_users_email_active", User.email, User.is_active)
 Index("idx_users_role_active", User.role, User.is_active)
 Index("idx_users_created_at", User.created_at)
 Index("idx_users_oauth", User.oauth_provider, User.oauth_id)
-Index("idx_user_sessions_token", UserSession.token)
-Index("idx_user_sessions_expires_at", UserSession.expires_at)
