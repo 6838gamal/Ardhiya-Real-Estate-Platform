@@ -47,8 +47,8 @@ class LogoutResponse(BaseModel):
 class SessionResponse(BaseModel):
     """Session information response."""
     user_id: int
-    provider: str
-    provider_user_id: str
+    #provider: str
+   # provider_user_id: str
     expires_at: datetime
     created_at: datetime
 
@@ -106,7 +106,7 @@ class GoogleJWKSResponse(BaseModel):
 class SessionCreate(BaseModel):
     """Create session request."""
     user_id: int
-    provider_user_id: str
+    #provider_user_id: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
 
