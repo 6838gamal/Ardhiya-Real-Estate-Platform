@@ -43,4 +43,4 @@ class UserSession(Base):
 Index("idx_sessions_user_id", UserSession.user_id)
 Index("idx_sessions_token_revoked", UserSession.token, UserSession.is_revoked)  # ✅ غيرت من session_token إلى token
 Index("idx_sessions_expires_at", UserSession.expires_at)
-Index("idx_sessions_provider_user_id", UserSession.provider_user_id)
+#Index("idx_sessions_provider_user_id", UserSession.provider_user_id)
