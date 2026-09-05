@@ -6,13 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.modules.auth.models import UserSession
-from app.modules.users.models import User  # ✅ إضافة استيراد User
+from app.modules.users.models import User
 from app.config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-# OAuth2 scheme for Bearer token (future API access)
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="auth/token",
     auto_error=False
@@ -20,13 +19,11 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 
 def _get_session_service_class():
-    """Get SessionService with lazy import."""
     from app.modules.auth.services import SessionService
     return SessionService
 
 
 def get_session_service(db: Session = Depends(get_db)):
-    """Get SessionService instance."""
     SessionService = _get_session_service_class()
     return SessionService(db)
 
@@ -35,31 +32,36 @@ async def get_current_user_session(
     request: Request,
     db: Session = Depends(get_db)
 ) -> Optional[UserSession]:
-    """Get current user session from cookie."""
     session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-
     if not session_token:
         return None
-
     SessionService = _get_session_service_class()
     session_service = SessionService(db)
-    session = session_service.get_session(session_token)
-
-    return session
+    return session_service.get_session(session_token)
 
 
 async def get_current_user(
-    session: Optional[UserSession] = Depends(get_current_user_session),
+    request: Request,
     db: Session = Depends(get_db)
 ) -> User:
     """Get current authenticated user."""
-    if not session:
+    session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if not session_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
     
-    # ✅ جلب المستخدم الكامل من قاعدة البيانات
+    SessionService = _get_session_service_class()
+    session_service = SessionService(db)
+    session = session_service.get_session(session_token)
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session"
+        )
+    
     from app.modules.users.services import UserService
     user_service = UserService(db)
     user = user_service.get_user_by_id(session.user_id)
@@ -80,18 +82,26 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    session: Optional[UserSession] = Depends(get_current_user_session),
+    request: Request,
     db: Session = Depends(get_db)
 ) -> Optional[User]:
-    """Get current user or None."""
-    if not session:
-        return None
-    
-    # ✅ جلب المستخدم الكامل من قاعدة البيانات
+    """Get current user or None (for templates)."""
     try:
+        session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+        if not session_token:
+            return None
+        
+        SessionService = _get_session_service_class()
+        session_service = SessionService(db)
+        session = session_service.get_session(session_token)
+        
+        if not session:
+            return None
+        
         from app.modules.users.services import UserService
         user_service = UserService(db)
         user = user_service.get_user_by_id(session.user_id)
+        
         return user if user and user.is_active else None
     except Exception as e:
         logger.error(f"Error getting current user: {str(e)}")
@@ -101,19 +111,17 @@ async def get_current_user_optional(
 def require_roles(allowed_roles: list[str]):
     """Dependency factory for role-based authorization."""
     async def role_checker(
-        user: User = Depends(get_current_user),  # ✅ الآن user هو كائن User
-        db: Session = Depends(get_db)
+        user: User = Depends(get_current_user),
     ):
         if user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires one of roles: {', '.join(allowed_roles)}"
             )
-        return user  # ✅ إرجاع المستخدم الكامل
+        return user
     return role_checker
 
 
-# Pre-configured role checkers
 require_admin = require_roles(["admin"])
 require_buyer = require_roles(["buyer", "admin"])
 require_owner = require_roles(["owner", "admin"])
