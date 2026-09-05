@@ -47,22 +47,20 @@ class UserService:
         finally:
             self._cleanup(db)
     
-    def get_user_by_provider_id(self, provider: str, provider_user_id: str) -> Optional[User]:
-        """Get user by provider and provider_user_id."""
+    # ✅ دالة جديدة للبحث بواسطة OAuth
+    def get_user_by_oauth_id(self, oauth_id: str, oauth_provider: str) -> Optional[User]:
+        """Get user by OAuth ID and provider."""
         db = self._get_db()
         try:
             return db.query(User).filter(
-                User.provider == provider,
-                User.provider_user_id == provider_user_id,
+                User.oauth_id == oauth_id,
+                User.oauth_provider == oauth_provider,
                 User.is_active == True
             ).first()
         finally:
             self._cleanup(db)
     
-    def get_by_id(self, user_id: int, include_profile: bool = True) -> Optional[User]:
-        """Get user by ID (alias for get_user_by_id)."""
-        return self.get_user_by_id(user_id, include_profile)
-    
+    # ✅ دالة محسنة للبحث بالبريد الإلكتروني
     def get_user_by_email(self, email: str, include_profile: bool = True) -> Optional[User]:
         """Get user by email with optional profile loading."""
         db = self._get_db()
@@ -73,6 +71,17 @@ class UserService:
             return query.filter(User.email == email).first()
         finally:
             self._cleanup(db)
+    
+    # ============ دوال متوافقة مع الإصدارات السابقة ============
+    
+    def get_user_by_provider_id(self, provider: str, provider_user_id: str) -> Optional[User]:
+        """Get user by provider and provider_user_id (Legacy - use get_user_by_oauth_id)."""
+        # ✅ تحويل إلى الدالة الجديدة
+        return self.get_user_by_oauth_id(provider_user_id, provider)
+    
+    def get_by_id(self, user_id: int, include_profile: bool = True) -> Optional[User]:
+        """Get user by ID (alias for get_user_by_id)."""
+        return self.get_user_by_id(user_id, include_profile)
     
     def get_user_by_email_strict(self, email: str) -> Optional[User]:
         """Get user by email even if inactive (for auth)."""
@@ -91,14 +100,14 @@ class UserService:
             if existing:
                 raise ValueError(f"User with email {data.email} already exists")
             
-            # Create user
+            # ✅ استخدام oauth_provider و oauth_id بدلاً من provider و provider_user_id
             user = User(
                 email=data.email,
                 name=data.name,
                 avatar_url=getattr(data, 'avatar_url', None),
                 role=getattr(data, 'role', 'buyer'),
-                provider=getattr(data, 'provider', None),
-                provider_user_id=getattr(data, 'provider_user_id', None),
+                oauth_provider=getattr(data, 'oauth_provider', None),  # ✅
+                oauth_id=getattr(data, 'oauth_id', None),              # ✅
                 is_active=getattr(data, 'is_active', True),
                 is_verified=getattr(data, 'is_verified', False)
             )
