@@ -285,10 +285,9 @@ async def get_session_info(
     if not session:
         return None
     
+    # ✅ استخدام الأعمدة الموجودة فقط
     return SessionResponse(
         user_id=session.user_id,
-        provider=session.provider,
-        provider_user_id=session.provider_user_id,
         expires_at=session.expires_at,
         created_at=session.created_at
     )
@@ -316,10 +315,9 @@ async def extend_session(
         # Refresh session
         session = session_service.get_session(session.token)
         
+        # ✅ استخدام الأعمدة الموجودة فقط
         return SessionResponse(
             user_id=session.user_id,
-            provider=session.provider,
-            provider_user_id=session.provider_user_id,
             expires_at=session.expires_at,
             created_at=session.created_at
         )
@@ -369,6 +367,8 @@ async def auth_health_check():
             "callback": "/auth/google/callback",
             "logout": "/auth/google/logout",
             "session": "/auth/google/session",
+            "extend": "/auth/google/session/extend",
+            "revoke-all": "/auth/google/session/revoke-all",
             "health": "/auth/google/health"
         }
     }
