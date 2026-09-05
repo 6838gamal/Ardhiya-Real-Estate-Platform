@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 # استيراد Base والإعدادات
 from app.config.database import Base
 from app.config.settings import settings
+from app.modules.users.models import User, UserProfile
 
 # استيراد جميع النماذج للتأكد من تسجيلها في Base.metadata
 
