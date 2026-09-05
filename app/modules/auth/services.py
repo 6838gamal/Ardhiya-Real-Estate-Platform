@@ -68,8 +68,8 @@ class AuthService:
         # ✅ Create session (provider_user_id اختياري)
         session = self.session_service.create_session(
             user_id=user.id,
-         #   ip_address=ip_address,
-          #  user_agent=user_agent
+            ip_address=ip_address,
+            user_agent=user_agent
             # ✅ لا نمرر provider_user_id لأنه غير موجود في قاعدة البيانات
         )
 
@@ -222,8 +222,8 @@ class SessionService:
         self, 
         user_id: int, 
         provider_user_id: Optional[str] = None,  # ← اختياري
-       # ip_address: Optional[str] = None,
-      #  user_agent: Optional[str] = None
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
     ) -> UserSession:
         """Create a new session."""
         # Generate session token
@@ -240,8 +240,8 @@ class SessionService:
             token=signed_token,
             # ✅ لا نستخدم provider أو provider_user_id
             expires_at=expires_at,
-         #   ip_address=ip_address,
-           # user_agent=user_agent,
+            ip_address=ip_address,
+            user_agent=user_agent,
             is_revoked=False
         )
 
