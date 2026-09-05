@@ -28,38 +28,45 @@ def get_session_service(db: Session = Depends(get_db)):
     return SessionService(db)
 
 
-async def get_current_user_session(
+# ============ دوال Session ============
+
+async def get_current_user_session_dep(
     request: Request,
     db: Session = Depends(get_db)
 ) -> Optional[UserSession]:
+    """Get current user session only (not User)."""
     session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
     if not session_token:
         return None
+    
     SessionService = _get_session_service_class()
     session_service = SessionService(db)
     return session_service.get_session(session_token)
 
 
-async def get_current_user(
-    request: Request,
-    db: Session = Depends(get_db)
-) -> User:
-    """Get current authenticated user."""
-    session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if not session_token:
+async def get_current_user_session_required(
+    session: Optional[UserSession] = Depends(get_current_user_session_dep),
+) -> UserSession:
+    """Get current user session (required)."""
+    if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
-    
-    SessionService = _get_session_service_class()
-    session_service = SessionService(db)
-    session = session_service.get_session(session_token)
-    
+    return session
+
+
+# ============ دوال User ============
+
+async def get_current_user(
+    session: Optional[UserSession] = Depends(get_current_user_session_dep),
+    db: Session = Depends(get_db)
+) -> User:
+    """Get current authenticated user."""
     if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session"
+            detail="Not authenticated"
         )
     
     from app.modules.users.services import UserService
@@ -107,6 +114,8 @@ async def get_current_user_optional(
         logger.error(f"Error getting current user: {str(e)}")
         return None
 
+
+# ============ دوال الصلاحيات ============
 
 def require_roles(allowed_roles: list[str]):
     """Dependency factory for role-based authorization."""
