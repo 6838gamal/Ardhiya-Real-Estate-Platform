@@ -73,11 +73,10 @@ class AuthService:
         # Create or update user
         user = await self._get_or_create_user(user_info)
 
-        # Create session
+        # Create session (بدون ip_address و user_agent)
         session = self.session_service.create_session(
-            user_id=user.id,
-            ip_address=ip_address,
-            user_agent=user_agent
+            user_id=user.id
+            # ✅ تم إزالة ip_address و user_agent
         )
 
         logger.info(f"✅ Session created for user: {user.email}")
@@ -348,9 +347,7 @@ class SessionService:
 
     def create_session(
         self, 
-        user_id: int, 
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_id: int
     ) -> UserSession:
         """Create a new session."""
         try:
@@ -363,12 +360,11 @@ class SessionService:
                 minutes=settings.SESSION_EXPIRE_MINUTES
             )
 
+            # ✅ إنشاء الجلسة بدون ip_address و user_agent
             session = UserSession(
                 user_id=user_id,
                 token=signed_token,
                 expires_at=expires_at,
-                ip_address=ip_address,
-                user_agent=user_agent,
                 is_revoked=False
             )
 
