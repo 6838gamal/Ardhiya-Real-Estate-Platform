@@ -18,6 +18,41 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body>
+    <!-- ============================================================ -->
+    <!-- 🔍 DEBUG INFORMATION - إزالة بعد حل المشكلة                   -->
+    <!-- ============================================================ -->
+    <div style="background: #fef3c7; padding: 15px; margin: 10px; border: 3px solid #f59e0b; border-radius: 8px; font-family: monospace; font-size: 14px; direction: ltr; text-align: left; max-width: 800px; margin: 10px auto;">
+        <h3 style="margin: 0 0 10px 0; color: #92400e;">🔍 DEBUG INFORMATION</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+            <div><strong>current_user:</strong></div>
+            <div style="color: {{ 'green' if current_user else 'red' }};">{{ current_user if current_user else 'None' }}</div>
+            
+            <div><strong>current_user.name:</strong></div>
+            <div>{{ current_user.name if current_user else 'None' }}</div>
+            
+            <div><strong>current_user.email:</strong></div>
+            <div>{{ current_user.email if current_user else 'None' }}</div>
+            
+            <div><strong>current_user.role:</strong></div>
+            <div>{{ current_user.role if current_user else 'None' }}</div>
+            
+            <div><strong>current_user.picture:</strong></div>
+            <div>{{ current_user.picture if current_user else 'None' }}</div>
+            
+            <div><strong>session_token cookie:</strong></div>
+            <div style="color: {{ 'green' if request.cookies.get('session_token') else 'red' }};">
+                {{ request.cookies.get('session_token')[:30] + '...' if request.cookies.get('session_token') else 'Not found' }}
+            </div>
+            
+            <div><strong>lang:</strong></div>
+            <div>{{ lang }}</div>
+            
+            <div><strong>active_page:</strong></div>
+            <div>{{ active_page }}</div>
+        </div>
+    </div>
+    <!-- ============================================================ -->
+
     <header class="site-header" id="siteHeader">
         <div class="container header-inner">
             <a href="/" class="logo">
@@ -66,7 +101,7 @@
                     </svg>
                 </button>
 
-                <!-- ===== تحديث: عرض معلومات المستخدم بدلاً من زر Login ===== -->
+                <!-- ===== عرض معلومات المستخدم بدلاً من زر Login ===== -->
                 {% if current_user %}
                 <div class="user-menu">
                     {% if current_user.picture %}
@@ -659,7 +694,8 @@
             // ===== Logout Function =====
             window.logout = function() {
                 if (confirm('{{ _('auth.confirm_logout') }}')) {
-                    fetch('/api/auth/logout', {
+                    // ✅ استخدام المسار الصحيح لتسجيل الخروج
+                    fetch('/auth/google/logout', {
                         method: 'POST',
                         credentials: 'include',
                         headers: {
@@ -669,7 +705,7 @@
                     })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.message) {
+                        if (data.success) {
                             window.location.href = '/login?success=' + encodeURIComponent('{{ _('auth.logout_success') }}');
                         } else {
                             window.location.href = '/';
