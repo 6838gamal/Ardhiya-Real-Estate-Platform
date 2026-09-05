@@ -83,7 +83,7 @@
 </section>
 
 <script>
-    // ✅ تم التحديث: استخدام المسار الصحيح مع /api
+    // ✅ تم التحديث: المسار الصحيح لـ Google OAuth
     function initiateGoogleLogin() {
         const btn = document.getElementById('googleLoginBtn');
         btn.disabled = true;
@@ -98,8 +98,8 @@
         const existingAlerts = document.querySelectorAll('.alert');
         existingAlerts.forEach(alert => alert.remove());
 
-        // ✅ المسار الصحيح مع /api
-        fetch('/api/auth/login', {
+        // ✅ المسار الصحيح: /auth/google/login
+        fetch('/auth/google/login', {  // ← تغيير المسار هنا
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
