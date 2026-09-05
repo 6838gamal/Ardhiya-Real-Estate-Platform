@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.config.settings import settings
-from app.modules.auth.models import UserSession
+from app.modules.auth.models import UserSession  # ✅ استيراد من auth.models
 from app.modules.auth.schemas import (
     GoogleUserInfo, TokenResponse, GoogleTokenExchange,
     GoogleJWKSResponse
@@ -28,7 +28,6 @@ class AuthService:
 
     def __init__(self, db: Session):
         self.db = db
-        # ✅ استخدام الدالة المصدرة من users/services
         self.user_service = UserService(db)
         self.session_service = SessionService(db)
         self.token_service = TokenService()
@@ -157,14 +156,12 @@ class AuthService:
 
     async def _get_or_create_user(self, user_info: GoogleUserInfo) -> Any:
         """Get or create user from Google user info."""
-        # ✅ استخدام الدالة الصحيحة
         user = self.user_service.get_user_by_provider_id(
             provider="google",
             provider_user_id=user_info.sub
         )
 
         if not user:
-            # ✅ إزالة الحقول غير الموجودة
             user_data = UserCreate(
                 email=user_info.email,
                 name=user_info.name or user_info.given_name or user_info.email,
@@ -209,12 +206,13 @@ class SessionService:
 
         session = UserSession(
             user_id=user_id,
-            session_token=signed_token,
+            token=signed_token,  # ✅ استخدام 'token' بدلاً من 'session_token'
             provider="google",
             provider_user_id=provider_user_id,
             expires_at=expires_at,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
+            is_revoked=False
         )
 
         self.db.add(session)
@@ -232,8 +230,8 @@ class SessionService:
             return None
 
         session = self.db.query(UserSession).filter(
-            UserSession.session_token == token,
-            UserSession.is_revoked == 0
+            UserSession.token == token,  # ✅ استخدام 'token' بدلاً من 'session_token'
+            UserSession.is_revoked == False  # ✅ Boolean بدلاً من 0
         ).first()
 
         if not session or session.is_expired():
@@ -250,7 +248,7 @@ class SessionService:
         if not session:
             return False
 
-        session.is_revoked = 1
+        session.is_revoked = True  # ✅ Boolean بدلاً من 1
         self.db.commit()
         return True
 
@@ -258,11 +256,11 @@ class SessionService:
         """Revoke all sessions for a user."""
         sessions = self.db.query(UserSession).filter(
             UserSession.user_id == user_id,
-            UserSession.is_revoked == 0
+            UserSession.is_revoked == False  # ✅ Boolean بدلاً من 0
         ).all()
 
         for session in sessions:
-            session.is_revoked = 1
+            session.is_revoked = True  # ✅ Boolean بدلاً من 1
 
         self.db.commit()
         return len(sessions)
