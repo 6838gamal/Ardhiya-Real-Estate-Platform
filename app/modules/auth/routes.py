@@ -18,8 +18,8 @@ from app.modules.auth.schemas import (
 )
 from app.modules.auth.dependencies import get_current_user, get_current_user_optional
 
-# ✅ تم التحديث: إضافة /api إلى البادئة
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+# ✅ تغيير البادئة لتتوافق مع Google
+router = APIRouter(prefix="/auth/google", tags=["Authentication"])
 
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
@@ -71,7 +71,7 @@ async def initiate_login(
         )
 
 
-@router.get("/callback", response_model=AuthCallbackResponse)
+@router.get("/callback", response_model=AuthCallbackResponse)  # ✅ الآن: /auth/google/callback
 async def auth_callback(
     code: str,
     state: str,
@@ -263,3 +263,17 @@ async def auth_health_check():
         "status": "healthy",
         "message": "Auth module is working"
     }
+
+
+# ✅ إضافة نقطة نهاية إضافية للتوافق مع المسار القديم (اختياري)
+# في حال وجود طلبات من الواجهة الأمامية تستخدم المسار القديم
+@router.get("/api/auth/callback")
+async def legacy_auth_callback(
+    code: str,
+    state: str,
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Legacy endpoint for backward compatibility."""
+    return await auth_callback(code, state, request, response, auth_service)
