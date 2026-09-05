@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.modules.auth.models import UserSession
+from app.modules.users.models import User  # ✅ إضافة استيراد User
 from app.config.settings import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 # OAuth2 scheme for Bearer token (future API access)
 oauth2_scheme = OAuth2PasswordBearer(
@@ -46,39 +50,66 @@ async def get_current_user_session(
 
 async def get_current_user(
     session: Optional[UserSession] = Depends(get_current_user_session),
-) -> UserSession:
-    """Get current authenticated user session."""
+    db: Session = Depends(get_db)
+) -> User:
+    """Get current authenticated user."""
     if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
-    return session
+    
+    # ✅ جلب المستخدم الكامل من قاعدة البيانات
+    from app.modules.users.services import UserService
+    user_service = UserService(db)
+    user = user_service.get_user_by_id(session.user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+    
+    return user
 
 
 async def get_current_user_optional(
     session: Optional[UserSession] = Depends(get_current_user_session),
-) -> Optional[UserSession]:
-    """Get current user session or None."""
-    return session
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Get current user or None."""
+    if not session:
+        return None
+    
+    # ✅ جلب المستخدم الكامل من قاعدة البيانات
+    try:
+        from app.modules.users.services import UserService
+        user_service = UserService(db)
+        user = user_service.get_user_by_id(session.user_id)
+        return user if user and user.is_active else None
+    except Exception as e:
+        logger.error(f"Error getting current user: {str(e)}")
+        return None
 
 
 def require_roles(allowed_roles: list[str]):
     """Dependency factory for role-based authorization."""
     async def role_checker(
-        session: UserSession = Depends(get_current_user),
+        user: User = Depends(get_current_user),  # ✅ الآن user هو كائن User
         db: Session = Depends(get_db)
     ):
-        from app.modules.users.services import UserService
-        
-        user = UserService.get_user_by_id(session.user_id)
-        
-        if not user or user.role not in allowed_roles:
+        if user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires one of roles: {', '.join(allowed_roles)}"
             )
-        return session
+        return user  # ✅ إرجاع المستخدم الكامل
     return role_checker
 
 
