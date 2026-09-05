@@ -205,7 +205,7 @@ async def auth_callback(
         # Set session cookie
         response.set_cookie(
             key=settings.SESSION_COOKIE_NAME,
-            value=result["session"].session_token,
+            value=result["session"].token,
             httponly=True,
             secure=False,  # ✅ False للتجربة
             samesite="lax",
@@ -314,7 +314,7 @@ async def extend_session(
             )
         
         # Refresh session
-        session = session_service.get_session(session.session_token)
+        session = session_service.get_session(session.token)
         
         return SessionResponse(
             user_id=session.user_id,
