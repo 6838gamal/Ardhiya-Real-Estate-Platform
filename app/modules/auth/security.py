@@ -5,24 +5,17 @@ Supports both local (password) and OAuth authentication.
 import hashlib
 import secrets
 import string
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any
 
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import timezone
 
 from app.config.settings import settings
 
 # ============================================================
-# إعدادات التشفير
-# ============================================================
-
-# سياق تشفير كلمات المرور باستخدام bcrypt
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# ============================================================
-# دوال تشفير كلمات المرور
+# دوال تشفير كلمات المرور باستخدام bcrypt مباشرة
 # ============================================================
 
 def get_password_hash(password: str) -> str:
@@ -33,9 +26,15 @@ def get_password_hash(password: str) -> str:
         password: كلمة المرور النصية
         
     Returns:
-        النص المشفر
+        النص المشفر (كـ string)
     """
-    return pwd_context.hash(password)
+    # تحويل كلمة المرور إلى bytes
+    password_bytes = password.encode('utf-8')
+    # إنشاء الملح وتشفير كلمة المرور
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    # إرجاع النص المشفر كـ string
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
@@ -48,16 +47,18 @@ def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool
         
     Returns:
         True إذا كانت متطابقة، False إذا لم تكن
-        
-    ملاحظة:
-        إذا كان hashed_password هو None، فهذا يعني أن المستخدم مسجل عبر OAuth
-        ولا يمكنه استخدام كلمة المرور للمصادقة.
     """
     # إذا لم يكن هناك كلمة مرور مشفرة (مستخدم OAuth)
     if hashed_password is None:
         return False
     
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # التحقق من كلمة المرور
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -281,7 +282,6 @@ def authenticate_user(db, email: str, password: str):
     
     # إذا كان المستخدم مسجلاً عبر OAuth وليس لديه كلمة مرور
     if user.is_oauth_user and user.password_hash is None:
-        # لا يمكن المصادقة بكلمة مرور
         return None
     
     # التحقق من كلمة المرور
@@ -343,7 +343,7 @@ def create_oauth_user(
         avatar_url=avatar_url,
         oauth_provider=provider,
         oauth_id=oauth_id,
-        password_hash=None,  # لا يحتاج كلمة مرور
+        password_hash=None,
         is_active=True,
         is_verified=True,
         role=role
@@ -399,11 +399,10 @@ def can_login_with_password(user) -> bool:
     if user is None:
         return False
     
-    # المستخدم لديه كلمة مرور وليس مستخدم OAuth فقط
     return user.has_password and not user.is_oauth_user
 
 
-def get_auth_methods(user) -> Dict[str, bool]:
+def get_auth_methods(user) -> Dict[str, Any]:
     """
     الحصول على طرق المصادقة المتاحة للمستخدم.
     
@@ -426,10 +425,6 @@ def get_auth_methods(user) -> Dict[str, bool]:
         "oauth_provider": user.oauth_provider if user.is_oauth_user else None
     }
 
-
-# ============================================================
-# دوال إدارة الجلسات
-# ============================================================
 
 def create_session_token() -> str:
     """
