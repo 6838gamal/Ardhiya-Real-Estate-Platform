@@ -233,7 +233,7 @@ class SessionService:
         session = UserSession(
             user_id=user_id,
             token=signed_token,
-            provider="google",
+           # provider="google",
             provider_user_id=provider_user_id,
             expires_at=expires_at,
             ip_address=ip_address,
