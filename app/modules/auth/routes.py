@@ -18,8 +18,11 @@ from app.modules.auth.schemas import (
 )
 from app.modules.auth.dependencies import get_current_user, get_current_user_optional
 
-# ✅ تغيير البادئة لتتوافق مع Google
+# ✅ البادئة الرئيسية لتوافق مع Google
 router = APIRouter(prefix="/auth/google", tags=["Authentication"])
+
+# 🔧 إنشاء راوتر إضافي للتوافق مع الإصدارات السابقة
+legacy_router = APIRouter(prefix="/api/auth", tags=["Authentication (Legacy)"])
 
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
@@ -32,6 +35,8 @@ def get_session_service(db: Session = Depends(get_db)) -> SessionService:
     return SessionService(db)
 
 
+# ============ المسارات الرئيسية (لـ Google) ============
+
 @router.get("/login", response_model=AuthInitResponse)
 async def initiate_login(
     request: Request,
@@ -43,13 +48,9 @@ async def initiate_login(
     Returns the Google OAuth URL and state parameter.
     """
     try:
-        # Generate state for CSRF protection
         state = secrets.token_urlsafe(32)
-        
-        # Store state in session cookie (will be validated on callback)
         oauth_url = auth_service.generate_oauth_url(state)
         
-        # Store state in cookie for validation
         response = Response()
         response.set_cookie(
             key="oauth_state",
@@ -57,7 +58,7 @@ async def initiate_login(
             httponly=True,
             secure=settings.COOKIE_SECURE,
             samesite="lax",
-            max_age=600  # 10 minutes
+            max_age=600
         )
         
         return AuthInitResponse(
@@ -71,7 +72,7 @@ async def initiate_login(
         )
 
 
-@router.get("/callback", response_model=AuthCallbackResponse)  # ✅ الآن: /auth/google/callback
+@router.get("/callback", response_model=AuthCallbackResponse)
 async def auth_callback(
     code: str,
     state: str,
@@ -85,7 +86,6 @@ async def auth_callback(
     Exchanges code for tokens, creates/updates user, and creates session.
     """
     try:
-        # Get stored state from request
         stored_state = request.cookies.get("oauth_state")
         
         if not stored_state:
@@ -94,11 +94,9 @@ async def auth_callback(
                 detail="Missing OAuth state"
             )
         
-        # Get client IP and user agent
         ip_address = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")
         
-        # Handle callback
         result = await auth_service.handle_callback(
             code=code,
             state=state,
@@ -107,10 +105,8 @@ async def auth_callback(
             user_agent=user_agent
         )
         
-        # Clear the state cookie
         response.delete_cookie("oauth_state")
         
-        # Set session cookie
         response.set_cookie(
             key=settings.SESSION_COOKIE_NAME,
             value=result["session"].session_token,
@@ -120,7 +116,6 @@ async def auth_callback(
             max_age=settings.JWT_EXPIRE_MINUTES * 60
         )
         
-        # Redirect to dashboard or return success
         return AuthCallbackResponse(
             success=True,
             user=AuthUserResponse.from_orm(result["user"]),
@@ -136,27 +131,23 @@ async def auth_callback(
         )
 
 
+# ============ المسارات الأخرى (الجلسة، تسجيل الخروج، إلخ) ============
+
 @router.post("/logout", response_model=LogoutResponse)
 async def logout(
     request: Request,
     response: Response,
     session_service: SessionService = Depends(get_session_service)
 ):
-    """
-    Logout current user.
-    
-    Revokes the session token and clears the cookie.
-    """
+    """Logout current user."""
     try:
         session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
         
         if session_token:
-            # Get session and revoke it
             session = session_service.get_session(session_token)
             if session:
                 session_service.revoke_session(session.id)
         
-        # Clear cookie
         response.delete_cookie(
             key=settings.SESSION_COOKIE_NAME,
             httponly=True,
@@ -176,11 +167,7 @@ async def logout(
 async def get_session_info(
     session = Depends(get_current_user_optional)
 ):
-    """
-    Get current session information.
-    
-    Returns session details if authenticated, None otherwise.
-    """
+    """Get current session information."""
     if not session:
         return None
     
@@ -198,11 +185,7 @@ async def extend_session(
     session = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service)
 ):
-    """
-    Extend current session expiry.
-    
-    Requires authentication.
-    """
+    """Extend current session expiry."""
     try:
         success = session_service.extend_session(session.id)
         
@@ -212,7 +195,6 @@ async def extend_session(
                 detail="Could not extend session"
             )
         
-        # Refresh session
         session = session_service.get_session(session.session_token)
         
         return SessionResponse(
@@ -236,11 +218,7 @@ async def revoke_all_sessions(
     session = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_service)
 ):
-    """
-    Revoke all sessions for current user.
-    
-    Requires authentication. All other sessions will be invalidated.
-    """
+    """Revoke all sessions for current user."""
     try:
         count = session_service.revoke_all_user_sessions(session.user_id)
         
@@ -255,7 +233,6 @@ async def revoke_all_sessions(
         )
 
 
-# ✅ نقطة نهاية إضافية للتحقق من صحة الاتصال
 @router.get("/health")
 async def auth_health_check():
     """Health check endpoint for auth module."""
@@ -265,15 +242,42 @@ async def auth_health_check():
     }
 
 
-# ✅ إضافة نقطة نهاية إضافية للتوافق مع المسار القديم (اختياري)
-# في حال وجود طلبات من الواجهة الأمامية تستخدم المسار القديم
-@router.get("/api/auth/callback")
-async def legacy_auth_callback(
+# ============ مسارات متوافقة مع الإصدارات السابقة (Legacy) ============
+
+@legacy_router.get("/login")
+async def legacy_login(
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Legacy login endpoint - redirects to new endpoint."""
+    return await initiate_login(request, auth_service)
+
+
+@legacy_router.get("/callback")
+async def legacy_callback(
     code: str,
     state: str,
     request: Request,
     response: Response,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """Legacy endpoint for backward compatibility."""
+    """Legacy callback endpoint - redirects to new endpoint."""
     return await auth_callback(code, state, request, response, auth_service)
+
+
+@legacy_router.post("/logout")
+async def legacy_logout(
+    request: Request,
+    response: Response,
+    session_service: SessionService = Depends(get_session_service)
+):
+    """Legacy logout endpoint."""
+    return await logout(request, response, session_service)
+
+
+@legacy_router.get("/session")
+async def legacy_session(
+    session = Depends(get_current_user_optional)
+):
+    """Legacy session endpoint."""
+    return await get_session_info(session)
