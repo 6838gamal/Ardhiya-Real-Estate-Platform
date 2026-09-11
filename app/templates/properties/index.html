@@ -14,7 +14,7 @@
                     <option value="">{{ _('property.type') }}</option>
                     <option value="apartment">{{ _('property.type.apartment') }}</option>
                     <option value="villa">{{ _('property.type.villa') }}</option>
-                    <option value="land">{{ _('property.type.land') }}</option>
+                    <option value="land" selected>{{ _('property.type.land') }}</option>
                     <option value="office">{{ _('property.type.office') }}</option>
                     <option value="shop">{{ _('property.type.shop') }}</option>
                 </select>
@@ -29,16 +29,242 @@
             <button class="btn btn-outline">{{ _('common.filter') }}</button>
         </div>
 
-        <div class="empty-state">
-            <div class="empty-icon">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                    <path d="M9 22V12h6v10"/>
-                </svg>
-            </div>
-            <h2>{{ _('home.no_properties') }}</h2>
-            <p>{{ _('common.coming_soon') }}</p>
+        <!-- ====== ثلاثة أراضي مع فيديو ====== -->
+        <div class="property-grid">
+
+            <!-- أرض 1 -->
+            <article class="property-card">
+                <div class="video-wrapper" data-video-id="fgvTvoBpafA">
+                    <img
+                        class="video-thumb"
+                        src="https://img.youtube.com/vi/fgvTvoBpafA/maxresdefault.jpg"
+                        alt="أرض رقم 1"
+                        loading="lazy"
+                    >
+                    <button class="play-btn" aria-label="تشغيل الفيديو">
+                        <svg width="68" height="48" viewBox="0 0 68 48">
+                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
+                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="property-info">
+                    <h3 class="property-title">أرض للبيع – موقع مميز</h3>
+                    <p class="property-meta">المساحة: 500 م² · السعر: قابل للتفاوض</p>
+                </div>
+            </article>
+
+            <!-- أرض 2 -->
+            <article class="property-card">
+                <div class="video-wrapper" data-video-id="AYbYNa3Lx98">
+                    <img
+                        class="video-thumb"
+                        src="https://img.youtube.com/vi/AYbYNa3Lx98/maxresdefault.jpg"
+                        alt="أرض رقم 2"
+                        loading="lazy"
+                    >
+                    <button class="play-btn" aria-label="تشغيل الفيديو">
+                        <svg width="68" height="48" viewBox="0 0 68 48">
+                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
+                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="property-info">
+                    <h3 class="property-title">أرض استثمارية – قريبة من الخدمات</h3>
+                    <p class="property-meta">المساحة: 800 م² · السعر: عند الطلب</p>
+                </div>
+            </article>
+
+            <!-- أرض 3 -->
+            <article class="property-card">
+                <div class="video-wrapper" data-video-id="QZXE2-sFWxQ">
+                    <img
+                        class="video-thumb"
+                        src="https://img.youtube.com/vi/QZXE2-sFWxQ/maxresdefault.jpg"
+                        alt="أرض رقم 3"
+                        loading="lazy"
+                    >
+                    <button class="play-btn" aria-label="تشغيل الفيديو">
+                        <svg width="68" height="48" viewBox="0 0 68 48">
+                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
+                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="property-info">
+                    <h3 class="property-title">أرض سكنية – إطلالة رائعة</h3>
+                    <p class="property-meta">المساحة: 1000 م² · السعر: قابل للتفاوض</p>
+                </div>
+            </article>
+
         </div>
     </div>
 </section>
+
+<!-- ====== نافذة الفيديو المنبثقة ====== -->
+<div class="video-modal" id="videoModal" aria-hidden="true">
+    <div class="video-modal-overlay" data-close-modal></div>
+    <div class="video-modal-content">
+        <button class="video-modal-close" data-close-modal aria-label="إغلاق">&times;</button>
+        <div class="video-modal-frame" id="videoFrameContainer"></div>
+    </div>
+</div>
+
+<style>
+/* ====== شبكة العقارات ====== */
+.property-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 32px;
+}
+
+.property-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.property-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+
+/* ====== غلاف الفيديو (الصورة المصغرة + زر التشغيل) ====== */
+.video-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    cursor: pointer;
+    overflow: hidden;
+}
+.video-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .3s ease, opacity .3s ease;
+}
+.video-wrapper:hover .video-thumb {
+    transform: scale(1.05);
+    opacity: .85;
+}
+.play-btn {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 68px;
+    height: 48px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform .2s ease;
+}
+.video-wrapper:hover .play-btn {
+    transform: scale(1.1);
+}
+
+.property-info { padding: 16px; }
+.property-title { margin: 0 0 6px; font-size: 1.05rem; }
+.property-meta { margin: 0; color: #666; font-size: .9rem; }
+
+/* ====== نافذة الفيديو المنبثقة ====== */
+.video-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.video-modal.is-open { display: flex; }
+
+.video-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    backdrop-filter: blur(4px);
+}
+.video-modal-content {
+    position: relative;
+    width: min(90vw, 960px);
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    z-index: 1;
+}
+.video-modal-frame,
+.video-modal-frame iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.video-modal-close {
+    position: absolute;
+    top: -44px;
+    right: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 32px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.video-modal-close:hover { color: #ff4d4d; }
+</style>
+
+<script>
+(function () {
+    'use strict';
+
+    const modal       = document.getElementById('videoModal');
+    const frameHolder = document.getElementById('videoFrameContainer');
+
+    // فتح الفيديو
+    function openVideo(videoId) {
+        frameHolder.innerHTML =
+            '<iframe src="https://www.youtube.com/embed/' + videoId +
+            '?autoplay=1&rel=0&modestbranding=1" ' +
+            'title="معاينة العقار" allow="accelerometer; autoplay; clipboard-write; ' +
+            'encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    // إغلاق الفيديو
+    function closeVideo() {
+        frameHolder.innerHTML = '';
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    // ربط الأحداث بكل بطاقة
+    document.querySelectorAll('.video-wrapper').forEach(function (wrapper) {
+        wrapper.addEventListener('click', function () {
+            openVideo(wrapper.dataset.videoId);
+        });
+    });
+
+    // إغلاق بالنقر على الخلفية أو زر الإغلاق
+    modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
+        el.addEventListener('click', closeVideo);
+    });
+
+    // إغلاق بمفتاح Escape
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+            closeVideo();
+        }
+    });
+})();
+</script>
 {% endblock %}
