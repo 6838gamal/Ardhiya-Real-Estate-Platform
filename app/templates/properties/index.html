@@ -5,100 +5,120 @@
     <div class="container">
         <div class="page-header">
             <h1 class="page-title">{{ _('nav.properties') }}</h1>
-            <p class="page-subtitle">{{ _('common.coming_soon') }}</p>
+            {% if lands %}
+                <p class="page-subtitle">{{ lands|length }} {{ _('property.available') }}</p>
+            {% else %}
+                <p class="page-subtitle">{{ _('common.coming_soon') }}</p>
+            {% endif %}
         </div>
 
-        <div class="filter-bar">
+        <!-- ====== شريط الفلترة ====== -->
+        <form class="filter-bar" method="get" action="">
             <div class="filter-item">
-                <select class="filter-select" aria-label="{{ _('property.type') }}">
+                <select class="filter-select" name="land_type" aria-label="{{ _('property.type') }}">
                     <option value="">{{ _('property.type') }}</option>
-                    <option value="apartment">{{ _('property.type.apartment') }}</option>
-                    <option value="villa">{{ _('property.type.villa') }}</option>
-                    <option value="land" selected>{{ _('property.type.land') }}</option>
-                    <option value="office">{{ _('property.type.office') }}</option>
-                    <option value="shop">{{ _('property.type.shop') }}</option>
+                    <option value="land"      {% if filters.land_type == 'land' %}selected{% endif %}>{{ _('property.type.land') }}</option>
+                    <option value="apartment" {% if filters.land_type == 'apartment' %}selected{% endif %}>{{ _('property.type.apartment') }}</option>
+                    <option value="villa"     {% if filters.land_type == 'villa' %}selected{% endif %}>{{ _('property.type.villa') }}</option>
+                    <option value="office"    {% if filters.land_type == 'office' %}selected{% endif %}>{{ _('property.type.office') }}</option>
+                    <option value="shop"      {% if filters.land_type == 'shop' %}selected{% endif %}>{{ _('property.type.shop') }}</option>
                 </select>
             </div>
             <div class="filter-item">
-                <select class="filter-select" aria-label="{{ _('property.status.for_sale') }}">
+                <select class="filter-select" name="purpose" aria-label="{{ _('property.status.for_sale') }}">
                     <option value="">{{ _('property.status.for_sale') }}</option>
-                    <option value="rent">{{ _('property.status.for_rent') }}</option>
-                    <option value="sold">{{ _('property.status.sold') }}</option>
+                    <option value="sale" {% if filters.purpose == 'sale' %}selected{% endif %}>{{ _('property.status.for_sale') }}</option>
+                    <option value="rent" {% if filters.purpose == 'rent' %}selected{% endif %}>{{ _('property.status.for_rent') }}</option>
                 </select>
             </div>
-            <button class="btn btn-outline">{{ _('common.filter') }}</button>
-        </div>
+            <div class="filter-item">
+                <select class="filter-select" name="city" aria-label="{{ _('property.city') }}">
+                    <option value="">{{ _('property.city') }}</option>
+                    {% for c in cities %}
+                        <option value="{{ c }}" {% if filters.city == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-outline">{{ _('common.filter') }}</button>
+        </form>
 
-        <!-- ====== ثلاثة أراضي مع فيديو ====== -->
+        <!-- ====== شبكة العقارات ====== -->
+        {% if lands %}
         <div class="property-grid">
-
-            <!-- أرض 1 -->
+            {% for land in lands %}
             <article class="property-card">
-                <div class="video-wrapper" data-video-id="fgvTvoBpafA">
+
+                {% if land.video_id %}
+                <!-- فيديو -->
+                <div class="video-wrapper" data-video-id="{{ land.video_id }}">
                     <img
                         class="video-thumb"
-                        src="https://img.youtube.com/vi/fgvTvoBpafA/maxresdefault.jpg"
-                        alt="أرض رقم 1"
+                        src="{{ land.cover_image or 'https://img.youtube.com/vi/' ~ land.video_id ~ '/maxresdefault.jpg' }}"
+                        alt="{{ land.title }}"
                         loading="lazy"
                     >
-                    <button class="play-btn" aria-label="تشغيل الفيديو">
+                    <button class="play-btn" aria-label="{{ _('common.play_video') }}">
                         <svg width="68" height="48" viewBox="0 0 68 48">
                             <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
                             <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
                         </svg>
                     </button>
                 </div>
+
+                {% elif land.cover_image %}
+                <!-- صورة غلاف -->
+                <div class="video-wrapper">
+                    <img class="video-thumb" src="{{ land.cover_image }}" alt="{{ land.title }}" loading="lazy">
+                </div>
+                {% endif %}
+
                 <div class="property-info">
-                    <h3 class="property-title">أرض للبيع – موقع مميز</h3>
-                    <p class="property-meta">المساحة: 500 م² · السعر: قابل للتفاوض</p>
+                    <div class="property-badges">
+                        {% if land.featured %}<span class="badge badge-featured">{{ _('property.featured') }}</span>{% endif %}
+                        {% if land.purpose %}
+                            <span class="badge badge-purpose">
+                                {{ _('property.status.for_sale') if land.purpose == 'sale' else _('property.status.for_rent') }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <h3 class="property-title">
+                        <a href="{{ url_for('land_detail', slug=land.slug) if url_for is defined else '#' }}">{{ land.title }}</a>
+                    </h3>
+
+                    {% if land.short_description %}
+                        <p class="property-desc">{{ land.short_description }}</p>
+                    {% endif %}
+
+                    <p class="property-meta">
+                        {% if land.area %}{{ _('property.area') }}: {{ land.area }} م²{% endif %}
+                        {% if land.rooms %} · {{ land.rooms }} {{ _('property.rooms') }}{% endif %}
+                        {% if land.bathrooms %} · {{ land.bathrooms }} {{ _('property.bathrooms') }}{% endif %}
+                    </p>
+
+                    {% if land.city or land.district %}
+                        <p class="property-location">
+                            📍 {{ land.city }}{% if land.district %} – {{ land.district }}{% endif %}
+                        </p>
+                    {% endif %}
+
+                    <p class="property-price">
+                        {% if land.price and land.price > 0 %}
+                            {{ land.price|int }} {{ land.currency }}
+                        {% else %}
+                            {{ _('property.price_on_request') }}
+                        {% endif %}
+                    </p>
                 </div>
             </article>
-
-            <!-- أرض 2 -->
-            <article class="property-card">
-                <div class="video-wrapper" data-video-id="AYbYNa3Lx98">
-                    <img
-                        class="video-thumb"
-                        src="https://img.youtube.com/vi/AYbYNa3Lx98/maxresdefault.jpg"
-                        alt="أرض رقم 2"
-                        loading="lazy"
-                    >
-                    <button class="play-btn" aria-label="تشغيل الفيديو">
-                        <svg width="68" height="48" viewBox="0 0 68 48">
-                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
-                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="property-info">
-                    <h3 class="property-title">أرض استثمارية – قريبة من الخدمات</h3>
-                    <p class="property-meta">المساحة: 800 م² · السعر: عند الطلب</p>
-                </div>
-            </article>
-
-            <!-- أرض 3 -->
-            <article class="property-card">
-                <div class="video-wrapper" data-video-id="QZXE2-sFWxQ">
-                    <img
-                        class="video-thumb"
-                        src="https://img.youtube.com/vi/QZXE2-sFWxQ/maxresdefault.jpg"
-                        alt="أرض رقم 3"
-                        loading="lazy"
-                    >
-                    <button class="play-btn" aria-label="تشغيل الفيديو">
-                        <svg width="68" height="48" viewBox="0 0 68 48">
-                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
-                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="property-info">
-                    <h3 class="property-title">أرض سكنية – إطلالة رائعة</h3>
-                    <p class="property-meta">المساحة: 1000 م² · السعر: قابل للتفاوض</p>
-                </div>
-            </article>
-
+            {% endfor %}
         </div>
+
+        {% else %}
+        <div class="empty-state">
+            <p>{{ _('property.no_results') }}</p>
+        </div>
+        {% endif %}
     </div>
 </section>
 
@@ -106,12 +126,33 @@
 <div class="video-modal" id="videoModal" aria-hidden="true">
     <div class="video-modal-overlay" data-close-modal></div>
     <div class="video-modal-content">
-        <button class="video-modal-close" data-close-modal aria-label="إغلاق">&times;</button>
+        <button class="video-modal-close" data-close-modal aria-label="{{ _('common.close') }}">&times;</button>
         <div class="video-modal-frame" id="videoFrameContainer"></div>
     </div>
 </div>
 
 <style>
+/* ====== شريط الفلترة ====== */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 24px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+.filter-item { flex: 1 1 180px; }
+.filter-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    font-size: .95rem;
+}
+
 /* ====== شبكة العقارات ====== */
 .property-grid {
     display: grid;
@@ -119,20 +160,21 @@
     gap: 24px;
     margin-top: 32px;
 }
-
 .property-card {
     background: #fff;
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 16px rgba(0,0,0,.08);
     transition: transform .2s ease, box-shadow .2s ease;
+    display: flex;
+    flex-direction: column;
 }
 .property-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(0,0,0,.12);
 }
 
-/* ====== غلاف الفيديو (الصورة المصغرة + زر التشغيل) ====== */
+/* ====== غلاف الفيديو ====== */
 .video-wrapper {
     position: relative;
     width: 100%;
@@ -148,10 +190,7 @@
     display: block;
     transition: transform .3s ease, opacity .3s ease;
 }
-.video-wrapper:hover .video-thumb {
-    transform: scale(1.05);
-    opacity: .85;
-}
+.video-wrapper:hover .video-thumb { transform: scale(1.05); opacity: .85; }
 .play-btn {
     position: absolute;
     inset: 0;
@@ -164,13 +203,40 @@
     padding: 0;
     transition: transform .2s ease;
 }
-.video-wrapper:hover .play-btn {
-    transform: scale(1.1);
+.video-wrapper:hover .play-btn { transform: scale(1.1); }
+
+/* ====== معلومات العقار ====== */
+.property-info { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.property-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.badge {
+    font-size: .72rem;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.badge-featured { background: #fff3cd; color: #8a6d00; }
+.badge-purpose  { background: #e7f3ff; color: #0a58ca; }
+
+.property-title { margin: 0; font-size: 1.05rem; }
+.property-title a { color: inherit; text-decoration: none; }
+.property-title a:hover { color: #0a58ca; }
+.property-desc  { margin: 0; color: #555; font-size: .88rem; }
+.property-meta  { margin: 0; color: #666; font-size: .85rem; }
+.property-location { margin: 0; color: #555; font-size: .85rem; }
+.property-price {
+    margin: 6px 0 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0a58ca;
 }
 
-.property-info { padding: 16px; }
-.property-title { margin: 0 0 6px; font-size: 1.05rem; }
-.property-meta { margin: 0; color: #666; font-size: .9rem; }
+/* ====== حالة عدم وجود نتائج ====== */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #777;
+    font-size: 1.05rem;
+}
 
 /* ====== نافذة الفيديو المنبثقة ====== */
 .video-modal {
@@ -182,7 +248,6 @@
     justify-content: center;
 }
 .video-modal.is-open { display: flex; }
-
 .video-modal-overlay {
     position: absolute;
     inset: 0;
@@ -200,11 +265,7 @@
     z-index: 1;
 }
 .video-modal-frame,
-.video-modal-frame iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
-}
+.video-modal-frame iframe { width: 100%; height: 100%; border: 0; }
 .video-modal-close {
     position: absolute;
     top: -44px;
@@ -227,7 +288,6 @@
     const modal       = document.getElementById('videoModal');
     const frameHolder = document.getElementById('videoFrameContainer');
 
-    // فتح الفيديو
     function openVideo(videoId) {
         frameHolder.innerHTML =
             '<iframe src="https://www.youtube.com/embed/' + videoId +
@@ -239,7 +299,6 @@
         document.body.style.overflow = 'hidden';
     }
 
-    // إغلاق الفيديو
     function closeVideo() {
         frameHolder.innerHTML = '';
         modal.classList.remove('is-open');
@@ -247,19 +306,16 @@
         document.body.style.overflow = '';
     }
 
-    // ربط الأحداث بكل بطاقة
-    document.querySelectorAll('.video-wrapper').forEach(function (wrapper) {
+    document.querySelectorAll('.video-wrapper[data-video-id]').forEach(function (wrapper) {
         wrapper.addEventListener('click', function () {
             openVideo(wrapper.dataset.videoId);
         });
     });
 
-    // إغلاق بالنقر على الخلفية أو زر الإغلاق
     modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
         el.addEventListener('click', closeVideo);
-    }); 
+    });
 
-    // إغلاق بمفتاح Escape
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && modal.classList.contains('is-open')) {
             closeVideo();
