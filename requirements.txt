@@ -17,3 +17,5 @@ pydantic[email]
 
 
 bcrypt
+
+asyncpg
