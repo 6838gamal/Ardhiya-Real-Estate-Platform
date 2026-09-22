@@ -3,13 +3,13 @@ import secrets
 import time
 import base64
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 import json
 
 import httpx
-from itsdangerous import URLSafeTimedSerializer, BadSignature
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from jose import jwt, jwk
 from jose.exceptions import JWTError
 from sqlalchemy.orm import Session
@@ -28,6 +28,21 @@ from app.modules.users.services import UserService
 logger = logging.getLogger(__name__)
 
 
+def utcnow() -> datetime:
+    """إرجاع الوقت الحالي كـ timezone-aware UTC."""
+    return datetime.now(timezone.utc)
+
+
+# ============================================================
+# ✅ Cache لـ Google JWKS (لمدة ساعة)
+# ============================================================
+_jwks_cache: Dict[str, Any] = {
+    "data": None,
+    "expires_at": 0,
+}
+_JWKS_CACHE_TTL = 3600  # ثانية (ساعة)
+
+
 class AuthService:
     """Orchestrates OAuth flow, token exchange, session creation."""
 
@@ -37,8 +52,11 @@ class AuthService:
         self.session_service = SessionService(db)
         self.token_service = TokenService()
 
+    # ============================================================
+    # ✅ توليد رابط OAuth
+    # ============================================================
     def generate_oauth_url(self, state: str) -> str:
-        """Generate Google OAuth URL with PKCE."""
+        """Generate Google OAuth URL."""
         params = {
             "client_id": settings.GOOGLE_CLIENT_ID,
             "redirect_uri": settings.GOOGLE_REDIRECT_URI,
@@ -46,37 +64,51 @@ class AuthService:
             "scope": "openid email profile",
             "state": state,
             "access_type": "online",
-            "prompt": "select_account"
+            "prompt": "select_account",
         }
         return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
-    async def handle_callback(self, code: str, state: str, stored_state: str,
-                              ip_address: Optional[str] = None,
-                              user_agent: Optional[str] = None) -> Dict[str, Any]:
+    # ============================================================
+    # ✅ معالجة الـ Callback
+    # ============================================================
+    async def handle_callback(
+        self,
+        code: str,
+        state: str,
+        stored_state: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Handle OAuth callback and create session."""
-        # Verify state for CSRF protection
+        # ✅ التحقق من state (طبقة أمان إضافية — routes.py يتحقق أيضاً)
         if state != stored_state:
-            logger.error(f"❌ State mismatch! Received: {state[:10]}..., Stored: {stored_state[:10]}...")
+            logger.error(
+                f"❌ State mismatch! Received: {state[:10]}..., "
+                f"Stored: {stored_state[:10]}..."
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid state parameter"
+                detail="Invalid state parameter",
             )
 
         logger.info("✅ State validated successfully")
 
-        # Exchange code for tokens
+        # تبادل الكود بالتوكنات
         tokens = await self._exchange_code_for_tokens(code)
 
-        # Verify ID token with access_token
-        user_info = await self._verify_id_token(tokens.id_token, tokens.access_token)
+        # التحقق من ID token
+        user_info = await self._verify_id_token(
+            tokens.id_token, tokens.access_token
+        )
 
-        # Create or update user
+        # إنشاء/تحديث المستخدم
         user = await self._get_or_create_user(user_info)
 
-        # Create session (بدون ip_address و user_agent)
+        # ✅ إنشاء الجلسة (مع تمرير ip_address و user_agent إذا أردت)
         session = self.session_service.create_session(
-            user_id=user.id
-            # ✅ تم إزالة ip_address و user_agent
+            user_id=user.id,
+            # ip_address=ip_address,   # فعّلها إذا كان العمود موجوداً
+            # user_agent=user_agent,
         )
 
         logger.info(f"✅ Session created for user: {user.email}")
@@ -84,48 +116,49 @@ class AuthService:
         return {
             "user": user,
             "session": session,
-            "access_token": tokens.access_token
+            "access_token": tokens.access_token,
         }
 
+    # ============================================================
+    # ✅ تبادل الكود بالتوكنات (Basic Auth)
+    # ============================================================
     async def _exchange_code_for_tokens(self, code: str) -> TokenResponse:
         """
         Exchange authorization code for tokens using Basic Authentication.
-        
-        تستخدم هذه الطريقة Basic Auth لتجنب مشكلة "Could not determine client ID"
         """
         try:
-            # ✅ التأكد من أن القيم موجودة
+            # ✅ التحقق من الإعدادات
             if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
                 logger.error("❌ GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set!")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Google OAuth credentials not configured"
+                    detail="Google OAuth credentials not configured",
                 )
 
-            # ✅ التأكد من أن redirect_uri موجود
             if not settings.GOOGLE_REDIRECT_URI:
                 logger.error("❌ GOOGLE_REDIRECT_URI is not set!")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Google OAuth redirect URI not configured"
+                    detail="Google OAuth redirect URI not configured",
                 )
 
-            # ✅ إنشاء Basic Auth header
+            # ✅ Basic Auth header
             credentials = f"{settings.GOOGLE_CLIENT_ID}:{settings.GOOGLE_CLIENT_SECRET}"
             encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
-            logger.info(f"🔑 Using Basic Auth for token exchange")
-            logger.info(f"🔑 GOOGLE_CLIENT_ID: {settings.GOOGLE_CLIENT_ID[:20]}...")
+            logger.info("🔑 Using Basic Auth for token exchange")
+            logger.info(
+                f"🔑 GOOGLE_CLIENT_ID: {settings.GOOGLE_CLIENT_ID[:20]}..."
+            )
             logger.info(f"🔑 GOOGLE_REDIRECT_URI: {settings.GOOGLE_REDIRECT_URI}")
 
-            # ✅ البيانات بدون client_id و client_secret (موجودة في الـ Auth header)
             token_data = {
                 "code": code,
                 "redirect_uri": settings.GOOGLE_REDIRECT_URI,
                 "grant_type": "authorization_code",
             }
 
-            logger.info(f"📤 Sending token exchange request with Basic Auth")
+            logger.info("📤 Sending token exchange request with Basic Auth")
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -133,28 +166,28 @@ class AuthService:
                     data=token_data,
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded",
-                        "Authorization": f"Basic {encoded_credentials}"
-                    }
+                        "Authorization": f"Basic {encoded_credentials}",
+                    },
                 )
 
             logger.info(f"📥 Response status: {response.status_code}")
 
             if response.status_code != 200:
                 logger.error(f"❌ Token exchange failed: {response.text}")
-                
-                # محاولة تحليل الخطأ
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error_description", error_data.get("error", "Unknown error"))
-                except:
+                    error_msg = error_data.get(
+                        "error_description",
+                        error_data.get("error", "Unknown error"),
+                    )
+                except Exception:
                     error_msg = response.text[:200]
-                
+
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Token exchange failed: {error_msg}"
+                    detail=f"Token exchange failed: {error_msg}",
                 )
 
-            # ✅ تسجيل نجاح التبادل
             logger.info("✅ Token exchange successful")
             return TokenResponse(**response.json())
 
@@ -162,13 +195,13 @@ class AuthService:
             logger.error("❌ Token exchange timeout")
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="Token exchange timeout"
+                detail="Token exchange timeout",
             )
         except httpx.RequestError as e:
             logger.error(f"❌ Request error during token exchange: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Token exchange failed: {str(e)}"
+                detail=f"Token exchange failed: {str(e)}",
             )
         except HTTPException:
             raise
@@ -176,38 +209,42 @@ class AuthService:
             logger.error(f"❌ Unexpected error during token exchange: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Token exchange failed: {str(e)}"
+                detail=f"Token exchange failed: {str(e)}",
             )
 
-    async def _verify_id_token(self, id_token: str, access_token: str) -> GoogleUserInfo:
-        """Verify Google ID token using JWKS with access_token for at_hash verification."""
+    # ============================================================
+    # ✅ التحقق من ID Token
+    # ============================================================
+    async def _verify_id_token(
+        self, id_token: str, access_token: str
+    ) -> GoogleUserInfo:
+        """Verify Google ID token using JWKS."""
         try:
-            # ✅ الحصول على JWKS
+            # ✅ الحصول على JWKS (مع cache)
             jwks_response = await self._get_google_jwks()
 
-            # ✅ استخراج الـ kid من التوكين
+            # ✅ استخراج kid
             unverified = jwt.get_unverified_header(id_token)
             kid = unverified.get("kid")
-            
+
             if not kid:
                 logger.error("❌ No kid in token header")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid ID token: missing kid"
+                    detail="Invalid ID token: missing kid",
                 )
 
-            # ✅ البحث عن المفتاح المناسب في قائمة المفاتيح
+            # ✅ البحث عن المفتاح المناسب
             key_data = None
             for key in jwks_response.keys:
-                if key.kid == kid:  # ✅ استخدام الخاصية مباشرة
-                    # ✅ تحويل الكائن إلى قاموس
+                if key.kid == kid:
                     key_data = {
                         "kty": key.kty,
                         "kid": key.kid,
                         "use": key.use,
                         "alg": key.alg,
                         "n": key.n,
-                        "e": key.e
+                        "e": key.e,
                     }
                     break
 
@@ -215,11 +252,10 @@ class AuthService:
                 logger.error(f"❌ No matching JWK found for kid: {kid}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="No matching JWK found"
+                    detail="No matching JWK found",
                 )
 
-            # ✅ تحويل المفتاح إلى تنسيق JWK باستخدام jose
-            from jose import jwk
+            # ✅ بناء المفتاح
             key = jwk.construct(key_data)
 
             # ✅ التحقق من التوكين
@@ -229,27 +265,48 @@ class AuthService:
                 algorithms=["RS256"],
                 audience=settings.GOOGLE_CLIENT_ID,
                 issuer="https://accounts.google.com",
-                access_token=access_token
+                access_token=access_token,
             )
 
-            logger.info(f"✅ ID token verified for user: {claims.get('email', 'unknown')}")
+            logger.info(
+                f"✅ ID token verified for user: "
+                f"{claims.get('email', 'unknown')}"
+            )
             return GoogleUserInfo(**claims)
 
         except JWTError as e:
             logger.error(f"❌ JWT verification failed: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid ID token: {str(e)}"
+                detail=f"Invalid ID token: {str(e)}",
             )
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"❌ Unexpected error verifying ID token: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to verify ID token: {str(e)}"
+                detail=f"Failed to verify ID token: {str(e)}",
             )
 
+    # ============================================================
+    # ✅ جلب Google JWKS (مع Cache)
+    # ============================================================
     async def _get_google_jwks(self) -> GoogleJWKSResponse:
-        """Fetch Google's JWKS."""
+        """Fetch Google's JWKS with in-memory caching."""
+        global _jwks_cache
+
+        now_ts = time.time()
+
+        # ✅ استخدام الـ cache إن لم تنتهِ صلاحيته
+        if (
+            _jwks_cache["data"] is not None
+            and _jwks_cache["expires_at"] > now_ts
+        ):
+            logger.debug("📦 Using cached JWKS")
+            return _jwks_cache["data"]
+
+        # ✅ جلب جديد
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
@@ -260,44 +317,58 @@ class AuthService:
                 logger.error(f"❌ Failed to fetch JWKS: {response.status_code}")
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Unable to fetch Google JWKS"
+                    detail="Unable to fetch Google JWKS",
                 )
 
-            return GoogleJWKSResponse(**response.json())
-            
+            jwks = GoogleJWKSResponse(**response.json())
+
+            # ✅ تحديث الـ cache
+            _jwks_cache["data"] = jwks
+            _jwks_cache["expires_at"] = now_ts + _JWKS_CACHE_TTL
+
+            logger.info("✅ JWKS fetched and cached")
+            return jwks
+
         except httpx.TimeoutException:
             logger.error("❌ JWKS fetch timeout")
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="JWKS fetch timeout"
+                detail="JWKS fetch timeout",
             )
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"❌ Failed to fetch JWKS: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Unable to fetch Google JWKS: {str(e)}"
+                detail=f"Unable to fetch Google JWKS: {str(e)}",
             )
 
+    # ============================================================
+    # ✅ إنشاء/تحديث المستخدم
+    # ============================================================
     async def _get_or_create_user(self, user_info: GoogleUserInfo) -> Any:
         """Get or create user from Google user info."""
         try:
-            # ✅ البحث عن المستخدم بواسطة oauth_id
+            # ✅ البحث بواسطة oauth_id
             user = self.user_service.get_user_by_oauth_id(
                 oauth_id=user_info.sub,
-                oauth_provider="google"
+                oauth_provider="google",
             )
-            
-            # ✅ إذا لم يتم العثور، حاول البحث بالبريد الإلكتروني
+
+            # ✅ إذا لم يوجد، ابحث بالبريد
             if not user:
                 user = self.user_service.get_user_by_email(user_info.email)
                 if user:
-                    # ✅ تحديث oauth_id للمستخدم الموجود
                     user.oauth_id = user_info.sub
                     user.oauth_provider = "google"
                     self.db.commit()
                     self.db.refresh(user)
-                    logger.info(f"✅ Updated existing user with OAuth ID: {user_info.email}")
-            
+                    logger.info(
+                        f"✅ Updated existing user with OAuth ID: "
+                        f"{user_info.email}"
+                    )
+
             if not user:
                 # ✅ إنشاء مستخدم جديد
                 user_data = UserCreate(
@@ -306,12 +377,12 @@ class AuthService:
                     oauth_provider="google",
                     oauth_id=user_info.sub,
                     is_active=True,
-                    is_verified=True
+                    is_verified=True,
                 )
                 user = self.user_service.create_user(user_data)
                 logger.info(f"✅ Created new user: {user_info.email}")
             else:
-                # ✅ تحديث معلومات المستخدم إذا كانت مختلفة
+                # ✅ تحديث معلومات المستخدم
                 updated = False
                 if user.name != user_info.name and user_info.name:
                     user.name = user_info.name
@@ -324,17 +395,20 @@ class AuthService:
                     self.db.commit()
                     self.db.refresh(user)
                     logger.info(f"✅ Updated user info: {user_info.email}")
-            
+
             return user
 
         except Exception as e:
             logger.error(f"❌ Failed to get or create user: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to process user: {str(e)}"
+                detail=f"Failed to process user: {str(e)}",
             )
 
 
+# ============================================================
+# ✅ SessionService
+# ============================================================
 class SessionService:
     """Session CRUD, expiry checks, revocation."""
 
@@ -342,30 +416,37 @@ class SessionService:
         self.db = db
         self.signer = URLSafeTimedSerializer(
             settings.SECRET_KEY,
-            salt="session-token"
+            salt="session-token",
         )
 
+    # ============================================================
+    # ✅ إنشاء جلسة
+    # ============================================================
     def create_session(
-        self, 
-        user_id: int
+        self,
+        user_id: int,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> UserSession:
         """Create a new session."""
         try:
-            # Generate session token
+            # ✅ توليد توكن عشوائي وتوقيعه
             raw_token = secrets.token_urlsafe(32)
             signed_token = self.signer.dumps(raw_token)
 
-            # Calculate expiry
-            expires_at = datetime.utcnow() + timedelta(
+            # ✅ حساب وقت الانتهاء (timezone-aware)
+            expires_at = utcnow() + timedelta(
                 minutes=settings.SESSION_EXPIRE_MINUTES
             )
 
-            # ✅ إنشاء الجلسة بدون ip_address و user_agent
+            # ✅ إنشاء الجلسة
             session = UserSession(
                 user_id=user_id,
                 token=signed_token,
                 expires_at=expires_at,
-                is_revoked=False
+                is_revoked=False,
+                # ip_address=ip_address,   # فعّلها إذا كان العمود موجوداً
+                # user_agent=user_agent,
             )
 
             self.db.add(session)
@@ -380,39 +461,60 @@ class SessionService:
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create session: {str(e)}"
+                detail=f"Failed to create session: {str(e)}",
             )
 
+    # ============================================================
+    # ✅ جلب جلسة بالتوكن
+    # ============================================================
     def get_session(self, token: str) -> Optional[UserSession]:
         """Get session by token."""
         try:
-            # Verify signature and extract raw token
-            raw_token = self.signer.loads(token)
+            # ✅ التحقق من التوقيع + انتهاء الصلاحية
+            _raw_token = self.signer.loads(
+                token,
+                max_age=settings.SESSION_EXPIRE_MINUTES * 60,
+            )
+        except SignatureExpired:
+            logger.warning("⚠️ Session token signature expired")
+            return None
         except BadSignature:
-            logger.warning(f"⚠️ Invalid session token signature")
+            logger.warning("⚠️ Invalid session token signature")
+            return None
+        except Exception as e:
+            logger.warning(f"⚠️ Error loading session token: {str(e)}")
             return None
 
-        session = self.db.query(UserSession).filter(
-            UserSession.token == token,
-            UserSession.is_revoked == False
-        ).first()
+        session = (
+            self.db.query(UserSession)
+            .filter(
+                UserSession.token == token,
+                UserSession.is_revoked == False,
+            )
+            .first()
+        )
 
         if not session:
-            logger.warning(f"⚠️ Session not found or revoked")
+            logger.warning("⚠️ Session not found or revoked")
             return None
 
         if session.is_expired():
-            logger.warning(f"⚠️ Session expired")
+            logger.warning("⚠️ Session expired")
             return None
 
         return session
 
+    # ============================================================
+    # ✅ إلغاء جلسة
+    # ============================================================
     def revoke_session(self, session_id: int) -> bool:
         """Revoke a session."""
         try:
-            session = self.db.query(UserSession).filter(
-                UserSession.id == session_id
-            ).first()
+            session = (
+                self.db.query(UserSession)
+                .filter(UserSession.id == session_id)
+                .first()
+            )
 
             if not session:
                 logger.warning(f"⚠️ Session not found: {session_id}")
@@ -428,32 +530,47 @@ class SessionService:
             self.db.rollback()
             return False
 
+    # ============================================================
+    # ✅ إلغاء كل جلسات مستخدم
+    # ============================================================
     def revoke_all_user_sessions(self, user_id: int) -> int:
         """Revoke all sessions for a user."""
         try:
-            sessions = self.db.query(UserSession).filter(
-                UserSession.user_id == user_id,
-                UserSession.is_revoked == False
-            ).all()
-
-            for session in sessions:
-                session.is_revoked = True
+            # ✅ استخدام update() بدلاً من الحلقة (أسرع)
+            count = (
+                self.db.query(UserSession)
+                .filter(
+                    UserSession.user_id == user_id,
+                    UserSession.is_revoked == False,
+                )
+                .update(
+                    {"is_revoked": True},
+                    synchronize_session=False,
+                )
+            )
 
             self.db.commit()
-            logger.info(f"✅ Revoked {len(sessions)} sessions for user_id: {user_id}")
-            return len(sessions)
+            logger.info(
+                f"✅ Revoked {count} sessions for user_id: {user_id}"
+            )
+            return count
 
         except Exception as e:
             logger.error(f"❌ Failed to revoke sessions: {str(e)}")
             self.db.rollback()
             return 0
 
+    # ============================================================
+    # ✅ تنظيف الجلسات المنتهية
+    # ============================================================
     def cleanup_expired_sessions(self) -> int:
         """Delete expired sessions."""
         try:
-            expired = self.db.query(UserSession).filter(
-                UserSession.expires_at < datetime.utcnow()
-            ).delete()
+            expired = (
+                self.db.query(UserSession)
+                .filter(UserSession.expires_at < utcnow())
+                .delete(synchronize_session=False)
+            )
 
             self.db.commit()
             logger.info(f"🧹 Cleaned up {expired} expired sessions")
@@ -464,18 +581,25 @@ class SessionService:
             self.db.rollback()
             return 0
 
+    # ============================================================
+    # ✅ تمديد جلسة
+    # ============================================================
     def extend_session(self, session_id: int) -> bool:
         """Extend session expiry."""
         try:
-            session = self.db.query(UserSession).filter(
-                UserSession.id == session_id
-            ).first()
+            session = (
+                self.db.query(UserSession)
+                .filter(UserSession.id == session_id)
+                .first()
+            )
 
             if not session or session.is_revoked:
-                logger.warning(f"⚠️ Cannot extend session: not found or revoked")
+                logger.warning(
+                    "⚠️ Cannot extend session: not found or revoked"
+                )
                 return False
 
-            session.expires_at = datetime.utcnow() + timedelta(
+            session.expires_at = utcnow() + timedelta(
                 minutes=settings.SESSION_EXPIRE_MINUTES
             )
             self.db.commit()
@@ -488,6 +612,9 @@ class SessionService:
             return False
 
 
+# ============================================================
+# ✅ TokenService (JWT للـ API)
+# ============================================================
 class TokenService:
     """JWT creation/verification for API access (future)."""
 
@@ -497,12 +624,15 @@ class TokenService:
             payload = {
                 "sub": str(user_id),
                 "role": role,
-                "iat": datetime.utcnow(),
-                "exp": datetime.utcnow() + timedelta(
-                    minutes=settings.JWT_EXPIRE_MINUTES
-                )
+                "iat": utcnow(),
+                "exp": utcnow()
+                + timedelta(minutes=settings.JWT_EXPIRE_MINUTES),
             }
-            token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+            token = jwt.encode(
+                payload,
+                settings.JWT_SECRET_KEY,
+                algorithm=settings.JWT_ALGORITHM,
+            )
             logger.info(f"✅ API token created for user_id: {user_id}")
             return token
 
@@ -510,7 +640,7 @@ class TokenService:
             logger.error(f"❌ Failed to create API token: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create token: {str(e)}"
+                detail=f"Failed to create token: {str(e)}",
             )
 
     def verify_api_token(self, token: str) -> Optional[Dict[str, Any]]:
@@ -519,7 +649,7 @@ class TokenService:
             payload = jwt.decode(
                 token,
                 settings.JWT_SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM]
+                algorithms=[settings.JWT_ALGORITHM],
             )
             return payload
         except JWTError as e:
