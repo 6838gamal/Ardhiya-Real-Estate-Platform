@@ -3,6 +3,8 @@
 {% block content %}
 <section class="page-section">
     <div class="container">
+
+        <!-- ====== زر العودة + مسار التنقل ====== -->
         <a href="/properties" class="back-link">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -10,16 +12,499 @@
             {{ _('common.back') }}
         </a>
 
+        {% if land %}
+
+        <!-- ====== رأس الصفحة ====== -->
+        <div class="land-header">
+            <div class="land-title-wrap">
+                <h1 class="land-title">{{ land.title }}</h1>
+                <div class="land-badges">
+                    {% if land.featured %}
+                        <span class="badge badge-featured">{{ _('property.featured') }}</span>
+                    {% endif %}
+                    {% if land.land_type %}
+                        <span class="badge badge-type">{{ _('property.type.' ~ land.land_type) }}</span>
+                    {% endif %}
+                    {% if land.purpose %}
+                        <span class="badge badge-purpose">
+                            {{ _('property.status.for_sale') if land.purpose == 'sale' else _('property.status.for_rent') }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="land-price">
+                {% if land.price and land.price > 0 %}
+                    <span class="price-value">{{ land.price|int }}</span>
+                    <span class="price-currency">{{ land.currency }}</span>
+                {% else %}
+                    <span class="price-on-request">{{ _('property.price_on_request') }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ====== معرض الوسائط ====== -->
+        <div class="land-gallery">
+            {% if land.video_id %}
+            <div class="gallery-main">
+                <div class="video-wrapper" data-video-id="{{ land.video_id }}">
+                    <img
+                        class="video-thumb"
+                        src="{{ land.cover_image or 'https://img.youtube.com/vi/' ~ land.video_id ~ '/maxresdefault.jpg' }}"
+                        alt="{{ land.title }}"
+                    >
+                    <button class="play-btn" aria-label="{{ _('common.play_video') }}">
+                        <svg width="68" height="48" viewBox="0 0 68 48">
+                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
+                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            {% elif land.cover_image %}
+            <div class="gallery-main">
+                <img src="{{ land.cover_image }}" alt="{{ land.title }}" class="gallery-image">
+            </div>
+            {% endif %}
+
+            {% if land.images and land.images|length > 0 %}
+            <div class="gallery-thumbs">
+                {% for img in land.images %}
+                    <img src="{{ img }}" alt="{{ land.title }} - {{ loop.index }}" class="gallery-thumb" loading="lazy">
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ====== التفاصيل + الشريط الجانبي ====== -->
+        <div class="land-body">
+
+            <!-- المحتوى الرئيسي -->
+            <div class="land-main">
+
+                <div class="land-section">
+                    <h2 class="section-title">{{ _('property.description') }}</h2>
+                    <p class="land-description">{{ land.description }}</p>
+                </div>
+
+                {% if land.features and land.features|length > 0 %}
+                <div class="land-section">
+                    <h2 class="section-title">{{ _('property.features') }}</h2>
+                    <ul class="features-list">
+                        {% for feat in land.features %}
+                            <li>{{ feat }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if land.latitude and land.longitude %}
+                <div class="land-section">
+                    <h2 class="section-title">{{ _('property.location') }}</h2>
+                    <div class="map-wrapper">
+                        <iframe
+                            src="https://www.google.com/maps?q={{ land.latitude }},{{ land.longitude }}&hl=ar&z=15&output=embed"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+
+            <!-- الشريط الجانبي -->
+            <aside class="land-sidebar">
+
+                <div class="specs-card">
+                    <h3 class="specs-title">{{ _('property.details') }}</h3>
+                    <ul class="specs-list">
+                        {% if land.area %}
+                        <li>
+                            <span class="spec-label">{{ _('property.area') }}</span>
+                            <span class="spec-value">{{ land.area }} م²</span>
+                        </li>
+                        {% endif %}
+                        {% if land.rooms %}
+                        <li>
+                            <span class="spec-label">{{ _('property.rooms') }}</span>
+                            <span class="spec-value">{{ land.rooms }}</span>
+                        </li>
+                        {% endif %}
+                        {% if land.bathrooms %}
+                        <li>
+                            <span class="spec-label">{{ _('property.bathrooms') }}</span>
+                            <span class="spec-value">{{ land.bathrooms }}</span>
+                        </li>
+                        {% endif %}
+                        {% if land.land_type %}
+                        <li>
+                            <span class="spec-label">{{ _('property.type') }}</span>
+                            <span class="spec-value">{{ _('property.type.' ~ land.land_type) }}</span>
+                        </li>
+                        {% endif %}
+                        {% if land.city %}
+                        <li>
+                            <span class="spec-label">{{ _('property.city') }}</span>
+                            <span class="spec-value">{{ land.city }}</span>
+                        </li>
+                        {% endif %}
+                        {% if land.district %}
+                        <li>
+                            <span class="spec-label">{{ _('property.district') }}</span>
+                            <span class="spec-value">{{ land.district }}</span>
+                        </li>
+                        {% endif %}
+                        {% if land.address %}
+                        <li>
+                            <span class="spec-label">{{ _('property.address') }}</span>
+                            <span class="spec-value">{{ land.address }}</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="contact-card">
+                    <h3 class="specs-title">{{ _('property.contact_us') }}</h3>
+                    <a href="tel:+966500000000" class="btn btn-primary btn-block">
+                        📞 {{ _('property.call_now') }}
+                    </a>
+                    <a href="https://wa.me/966500000000?text={{ land.title }}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-block">
+                        💬 {{ _('property.whatsapp') }}
+                    </a>
+                </div>
+
+            </aside>
+
+        </div>
+
+        {% else %}
+
+        <!-- ====== حالة عدم وجود العقار ====== -->
         <div class="empty-state">
             <div class="empty-icon">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M3 9h18M9 21V9"/>
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 8v4M12 16h.01"/>
                 </svg>
             </div>
-            <h2>{{ _('common.coming_soon') }}</h2>
-            <p>{{ _('home.no_properties') }}</p>
+            <h2>{{ _('property.not_found') }}</h2>
+            <p>{{ _('property.not_found_desc') }}</p>
+            <a href="/properties" class="btn btn-outline">{{ _('property.browse_all') }}</a>
         </div>
+
+        {% endif %}
+
     </div>
 </section>
+
+<!-- ====== نافذة الفيديو المنبثقة ====== -->
+<div class="video-modal" id="videoModal" aria-hidden="true">
+    <div class="video-modal-overlay" data-close-modal></div>
+    <div class="video-modal-content">
+        <button class="video-modal-close" data-close-modal aria-label="{{ _('common.close') }}">&times;</button>
+        <div class="video-modal-frame" id="videoFrameContainer"></div>
+    </div>
+</div>
+
+<style>
+/* ====== زر العودة ====== */
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #0a58ca;
+    text-decoration: none;
+    font-size: .95rem;
+    margin-bottom: 20px;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* ====== رأس الصفحة ====== */
+.land-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+.land-title { margin: 0 0 10px; font-size: 1.8rem; }
+.land-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+    font-size: .75rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+.badge-featured { background: #fff3cd; color: #8a6d00; }
+.badge-type     { background: #e7f3ff; color: #0a58ca; }
+.badge-purpose  { background: #d4edda; color: #155724; }
+
+.land-price { text-align: right; }
+.price-value { font-size: 2rem; font-weight: 700; color: #0a58ca; }
+.price-currency { font-size: 1rem; color: #666; margin-inline-start: 6px; }
+.price-on-request { font-size: 1.2rem; color: #8a6d00; font-weight: 600; }
+
+/* ====== معرض الوسائط ====== */
+.land-gallery { margin-bottom: 32px; }
+.gallery-main {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.gallery-image {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.video-wrapper {
+    position: relative;
+    width: 100%; height: 100%;
+    cursor: pointer;
+    overflow: hidden;
+}
+.video-thumb {
+    width: 100%; height: 100%; object-fit: cover;
+    transition: transform .3s ease, opacity .3s ease;
+}
+.video-wrapper:hover .video-thumb { transform: scale(1.05); opacity: .85; }
+.play-btn {
+    position: absolute;
+    inset: 0; margin: auto;
+    width: 68px; height: 48px;
+    background: transparent; border: none;
+    cursor: pointer; padding: 0;
+    transition: transform .2s ease;
+}
+.video-wrapper:hover .play-btn { transform: scale(1.1); }
+
+.gallery-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+.gallery-thumb {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform .2s ease, opacity .2s ease;
+}
+.gallery-thumb:hover { transform: scale(1.04); opacity: .9; }
+
+/* ====== جسم الصفحة ====== */
+.land-body {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 32px;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .land-body { grid-template-columns: 1fr; }
+}
+
+.land-section { margin-bottom: 28px; }
+.section-title {
+    font-size: 1.2rem;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #eef2f7;
+}
+.land-description {
+    line-height: 1.8;
+    color: #444;
+    white-space: pre-line;
+}
+
+.features-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+.features-list li {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: .92rem;
+}
+.features-list li::before {
+    content: "✓";
+    color: #0a58ca;
+    font-weight: 700;
+    margin-inline-end: 8px;
+}
+
+/* ====== الخريطة ====== */
+.map-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #eee;
+}
+.map-wrapper iframe { width: 100%; height: 100%; border: 0; }
+
+/* ====== الشريط الجانبي ====== */
+.land-sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+.specs-card,
+.contact-card {
+    background: #fff;
+    border: 1px solid #eef2f7;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.04);
+}
+.specs-title {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eef2f7;
+}
+.specs-list { list-style: none; padding: 0; margin: 0; }
+.specs-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px dashed #eef2f7;
+    font-size: .92rem;
+}
+.specs-list li:last-child { border-bottom: none; }
+.spec-label { color: #777; }
+.spec-value { font-weight: 600; color: #222; text-align: end; }
+
+/* ====== أزرار الاتصال ====== */
+.btn-block {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: opacity .2s ease;
+}
+.btn-block:hover { opacity: .9; }
+.btn-primary { background: #0a58ca; color: #fff; }
+.btn-whatsapp { background: #25d366; color: #fff; }
+
+/* ====== حالة عدم وجود العقار ====== */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+.empty-icon { color: #c8d1dc; margin-bottom: 16px; }
+.empty-state h2 { margin: 0 0 10px; }
+.empty-state p { color: #777; margin: 0 0 24px; }
+
+.btn-outline {
+    display: inline-block;
+    padding: 10px 22px;
+    border: 1px solid #0a58ca;
+    color: #0a58ca;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+.btn-outline:hover { background: #0a58ca; color: #fff; }
+
+/* ====== نافذة الفيديو المنبثقة ====== */
+.video-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.video-modal.is-open { display: flex; }
+.video-modal-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.85);
+    backdrop-filter: blur(4px);
+}
+.video-modal-content {
+    position: relative;
+    width: min(90vw, 960px);
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    z-index: 1;
+}
+.video-modal-frame,
+.video-modal-frame iframe { width: 100%; height: 100%; border: 0; }
+.video-modal-close {
+    position: absolute;
+    top: -44px; right: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 32px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.video-modal-close:hover { color: #ff4d4d; }
+
+/* ====== RTL ====== */
+[dir="rtl"] .back-link svg { transform: scaleX(-1); }
+</style>
+
+<script>
+(function () {
+    'use strict';
+
+    const modal       = document.getElementById('videoModal');
+    const frameHolder = document.getElementById('videoFrameContainer');
+
+    function openVideo(videoId) {
+        frameHolder.innerHTML =
+            '<iframe src="https://www.youtube.com/embed/' + videoId +
+            '?autoplay=1&rel=0&modestbranding=1" ' +
+            'title="معاينة العقار" allow="accelerometer; autoplay; clipboard-write; ' +
+            'encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeVideo() {
+        frameHolder.innerHTML = '';
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.video-wrapper[data-video-id]').forEach(function (wrapper) {
+        wrapper.addEventListener('click', function () {
+            openVideo(wrapper.dataset.videoId);
+        });
+    });
+
+    modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
+        el.addEventListener('click', closeVideo);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+            closeVideo();
+        }
+    });
+
+    // معرض الصور: النقر على صورة مصغّرة يعرضها في الإطار الرئيسي
+    document.querySelectorAll('.gallery-thumb').forEach(function (thumb) {
+        thumb.addEventListener('click', function () {
+            const main = document.querySelector('.gallery-image');
+            if (main) main.src = thumb.src;
+        });
+    });
+})();
+</script>
 {% endblock %}
