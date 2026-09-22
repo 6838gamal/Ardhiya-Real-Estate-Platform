@@ -139,6 +139,13 @@
             to { transform: rotate(360deg); }
         }
 
+        /* ===== ضمان أن القوائم المنسدلة لا تُقص ===== */
+        .site-header,
+        .header-inner,
+        .header-actions {
+            overflow: visible !important;
+        }
+
         /* ===== User Menu Styles ===== */
         .user-menu {
             display: flex;
@@ -154,6 +161,7 @@
             object-fit: cover;
             border: 2px solid transparent;
             transition: border-color 0.2s;
+            cursor: pointer;
         }
 
         .user-avatar:hover {
@@ -173,6 +181,7 @@
             font-size: 0.875rem;
             text-transform: uppercase;
             flex-shrink: 0;
+            cursor: pointer;
         }
 
         .user-name {
@@ -183,6 +192,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            cursor: pointer;
         }
 
         [data-theme="dark"] .user-name {
@@ -220,7 +230,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
             padding: 0.75rem;
             border: 1px solid var(--border-color, #e2e8f0);
-            z-index: 1000;
+            z-index: 9999;                /* ✅ رفع z-index */
             animation: dropdownFade 0.2s ease;
         }
 
@@ -231,7 +241,7 @@
         }
 
         .dropdown-menu.show {
-            display: block;
+            display: block !important;    /* ✅ ضمان الظهور */
         }
 
         @keyframes dropdownFade {
@@ -543,6 +553,12 @@
             console.log('✅ [base.html] Script loaded');
 
             // =============================================
+            // ✅ علم لمنع التحديث المتكرر
+            // =============================================
+            let authCheckDone = false;
+            let authCheckInProgress = false;
+
+            // =============================================
             // ✅ التحقق من حالة المصادقة وعرض الـ UI
             // =============================================
             async function updateAuthUI() {
@@ -551,6 +567,12 @@
                     console.error('❌ authSection not found!');
                     return;
                 }
+
+                if (authCheckInProgress) {
+                    console.log('⏭️ Auth check already in progress, skipping');
+                    return;
+                }
+                authCheckInProgress = true;
 
                 console.log('🔄 updateAuthUI() called');
 
@@ -568,22 +590,26 @@
                     if (response.ok) {
                         const data = await response.json();
                         console.log('📦 Session data:', data);
-                        
+
                         if (data && data.user_id) {
-                            // ✅ مستخدم مسجل - عرض معلومات المستخدم
                             console.log('✅ User is authenticated, rendering user menu');
                             renderUserMenu(authSection, data);
+                            authCheckDone = true;
+                            authCheckInProgress = false;
                             return;
                         }
                     }
 
-                    // ❌ غير مسجل - عرض زر تسجيل الدخول
                     console.log('❌ User is not authenticated, rendering login button');
                     renderLoginButton(authSection);
+                    authCheckDone = true;
 
                 } catch (error) {
                     console.error('❌ Auth check failed:', error);
                     renderLoginButton(authSection);
+                    authCheckDone = true;
+                } finally {
+                    authCheckInProgress = false;
                 }
             }
 
@@ -599,17 +625,17 @@
 
                 container.innerHTML = `
                     <div class="user-menu">
-                        ${picture ? 
+                        ${picture ?
                             `<img src="${picture}" alt="${name}" class="user-avatar" width="36" height="36" loading="lazy">` :
                             `<div class="user-avatar-placeholder">${initial}</div>`
                         }
                         <span class="user-name">${name}</span>
-                        <button class="icon-btn dropdown-toggle" id="userDropdown" aria-haspopup="true" aria-expanded="false">
+                        <button class="icon-btn dropdown-toggle" id="userDropdown" type="button" aria-haspopup="true" aria-expanded="false" aria-label="User menu">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="6 9 12 15 18 9"/>
                             </svg>
                         </button>
-                        <div class="dropdown-menu" aria-labelledby="userDropdown">
+                        <div class="dropdown-menu" id="userDropdownMenu" aria-labelledby="userDropdown">
                             <div class="dropdown-user-info">
                                 <div class="dropdown-user-avatar">
                                     ${picture ? `<img src="${picture}" alt="${name}" width="40" height="40" loading="lazy">` : initial}
@@ -647,7 +673,7 @@
                                 الإعدادات
                             </a>
                             <hr class="dropdown-divider">
-                            <button onclick="logoutUser()" class="dropdown-item text-danger">
+                            <button type="button" onclick="logoutUser()" class="dropdown-item text-danger">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                                     <polyline points="16 17 21 12 16 7"/>
@@ -659,8 +685,10 @@
                     </div>
                 `;
 
-                // ✅ إضافة مستمعي الأحداث للـ dropdown
-                setupUserDropdown();
+                // ✅ استخدام requestAnimationFrame لضمان اكتمال الـ DOM
+                requestAnimationFrame(() => {
+                    setupUserDropdown();
+                });
             }
 
             // =============================================
@@ -677,26 +705,81 @@
             // =============================================
             function setupUserDropdown() {
                 const toggle = document.getElementById('userDropdown');
-                const menu = document.querySelector('.dropdown-menu');
+                const menu = document.getElementById('userDropdownMenu');
+                const userMenu = document.querySelector('.user-menu');
+                const avatar = document.querySelector('.user-avatar, .user-avatar-placeholder');
+                const userName = document.querySelector('.user-name');
 
-                if (toggle && menu) {
-                    toggle.addEventListener('click', function(e) {
+                console.log('🔧 setupUserDropdown:', {
+                    toggle: !!toggle,
+                    menu: !!menu,
+                    userMenu: !!userMenu
+                });
+
+                if (!toggle || !menu) {
+                    console.error('❌ Dropdown elements not found!');
+                    return;
+                }
+
+                // ✅ دالة موحدة لتبديل القائمة
+                function toggleDropdown(e) {
+                    if (e) {
+                        e.preventDefault();
                         e.stopPropagation();
-                        const isExpanded = this.getAttribute('aria-expanded') === 'true';
-                        this.setAttribute('aria-expanded', !isExpanded);
-                        menu.classList.toggle('show');
-                    });
+                    }
 
-                    document.addEventListener('click', function(e) {
+                    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+                    toggle.setAttribute('aria-expanded', String(!isExpanded));
+                    menu.classList.toggle('show');
+
+                    console.log('🔽 Dropdown toggled:', !isExpanded);
+                }
+
+                // ✅ إزالة المستمع القديم إن وُجد (لتجنب التكرار)
+                if (toggle._dropdownHandler) {
+                    toggle.removeEventListener('click', toggle._dropdownHandler);
+                }
+                toggle._dropdownHandler = toggleDropdown;
+                toggle.addEventListener('click', toggleDropdown);
+
+                // ✅ إضافة النقر على الصورة أيضاً
+                if (avatar) {
+                    if (avatar._dropdownHandler) {
+                        avatar.removeEventListener('click', avatar._dropdownHandler);
+                    }
+                    avatar._dropdownHandler = toggleDropdown;
+                    avatar.addEventListener('click', toggleDropdown);
+                }
+
+                // ✅ إضافة النقر على الاسم أيضاً
+                if (userName) {
+                    if (userName._dropdownHandler) {
+                        userName.removeEventListener('click', userName._dropdownHandler);
+                    }
+                    userName._dropdownHandler = toggleDropdown;
+                    userName.addEventListener('click', toggleDropdown);
+                }
+
+                // ✅ إغلاق عند النقر خارج القائمة
+                if (!document._dropdownOutsideHandler) {
+                    document._dropdownOutsideHandler = function(e) {
+                        const menu = document.getElementById('userDropdownMenu');
+                        const toggle = document.getElementById('userDropdown');
                         const userMenu = document.querySelector('.user-menu');
-                        if (userMenu && !userMenu.contains(e.target)) {
+
+                        if (!menu || !userMenu) return;
+
+                        if (!userMenu.contains(e.target)) {
                             menu.classList.remove('show');
                             if (toggle) {
                                 toggle.setAttribute('aria-expanded', 'false');
                             }
                         }
-                    });
+                    };
+                    document.addEventListener('click', document._dropdownOutsideHandler);
                 }
+
+                console.log('✅ Dropdown setup complete');
             }
 
             // =============================================
@@ -811,12 +894,14 @@
             });
 
             // =============================================
-            // ✅ استدعاء إضافي بعد تحميل الصفحة بالكامل
+            // ✅ إعادة التحقق عند العودة للصفحة (bfcache)
             // =============================================
-            window.addEventListener('load', function() {
-                console.log('🔄 Window fully loaded - Re-checking authentication status...');
-                // تأكد من أن الـ UI محدث بعد تحميل الصفحة بالكامل
-                setTimeout(updateAuthUI, 100);
+            window.addEventListener('pageshow', function(event) {
+                if (event.persisted) {
+                    console.log('🔄 Page restored from bfcache, re-checking auth...');
+                    authCheckDone = false;
+                    updateAuthUI();
+                }
             });
 
             console.log('✅ [base.html] All scripts initialized');
