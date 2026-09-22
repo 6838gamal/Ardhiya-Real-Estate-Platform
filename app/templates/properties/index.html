@@ -1,11 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
+{# ==== حماية ضد المتغيرات غير المُمرَّرة ==== #}
+{% set filters = filters | default({}, true) %}
+{% set cities  = cities  | default([], true) %}
+{% set lands   = lands   | default([], true) %}
+
 <section class="page-section">
     <div class="container">
         <div class="page-header">
             <h1 class="page-title">{{ _('nav.properties') }}</h1>
-            {% if lands %}
+            {% if lands|length > 0 %}
                 <p class="page-subtitle">{{ lands|length }} {{ _('property.available') }}</p>
             {% else %}
                 <p class="page-subtitle">{{ _('common.coming_soon') }}</p>
@@ -17,25 +22,25 @@
             <div class="filter-item">
                 <select class="filter-select" name="land_type" aria-label="{{ _('property.type') }}">
                     <option value="">{{ _('property.type') }}</option>
-                    <option value="land"      {% if filters.land_type == 'land' %}selected{% endif %}>{{ _('property.type.land') }}</option>
-                    <option value="apartment" {% if filters.land_type == 'apartment' %}selected{% endif %}>{{ _('property.type.apartment') }}</option>
-                    <option value="villa"     {% if filters.land_type == 'villa' %}selected{% endif %}>{{ _('property.type.villa') }}</option>
-                    <option value="office"    {% if filters.land_type == 'office' %}selected{% endif %}>{{ _('property.type.office') }}</option>
-                    <option value="shop"      {% if filters.land_type == 'shop' %}selected{% endif %}>{{ _('property.type.shop') }}</option>
+                    <option value="land"      {% if filters.get('land_type') == 'land' %}selected{% endif %}>{{ _('property.type.land') }}</option>
+                    <option value="apartment" {% if filters.get('land_type') == 'apartment' %}selected{% endif %}>{{ _('property.type.apartment') }}</option>
+                    <option value="villa"     {% if filters.get('land_type') == 'villa' %}selected{% endif %}>{{ _('property.type.villa') }}</option>
+                    <option value="office"    {% if filters.get('land_type') == 'office' %}selected{% endif %}>{{ _('property.type.office') }}</option>
+                    <option value="shop"      {% if filters.get('land_type') == 'shop' %}selected{% endif %}>{{ _('property.type.shop') }}</option>
                 </select>
             </div>
             <div class="filter-item">
                 <select class="filter-select" name="purpose" aria-label="{{ _('property.status.for_sale') }}">
                     <option value="">{{ _('property.status.for_sale') }}</option>
-                    <option value="sale" {% if filters.purpose == 'sale' %}selected{% endif %}>{{ _('property.status.for_sale') }}</option>
-                    <option value="rent" {% if filters.purpose == 'rent' %}selected{% endif %}>{{ _('property.status.for_rent') }}</option>
+                    <option value="sale" {% if filters.get('purpose') == 'sale' %}selected{% endif %}>{{ _('property.status.for_sale') }}</option>
+                    <option value="rent" {% if filters.get('purpose') == 'rent' %}selected{% endif %}>{{ _('property.status.for_rent') }}</option>
                 </select>
             </div>
             <div class="filter-item">
                 <select class="filter-select" name="city" aria-label="{{ _('property.city') }}">
                     <option value="">{{ _('property.city') }}</option>
                     {% for c in cities %}
-                        <option value="{{ c }}" {% if filters.city == c %}selected{% endif %}>{{ c }}</option>
+                        <option value="{{ c }}" {% if filters.get('city') == c %}selected{% endif %}>{{ c }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -43,7 +48,7 @@
         </form>
 
         <!-- ====== شبكة العقارات ====== -->
-        {% if lands %}
+        {% if lands|length > 0 %}
         <div class="property-grid">
             {% for land in lands %}
             <article class="property-card">
@@ -57,7 +62,7 @@
                         alt="{{ land.title }}"
                         loading="lazy"
                     >
-                    <button class="play-btn" aria-label="{{ _('common.play_video') }}">
+                    <button class="play-btn" type="button" aria-label="{{ _('common.play_video') }}">
                         <svg width="68" height="48" viewBox="0 0 68 48">
                             <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
                             <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
@@ -83,7 +88,7 @@
                     </div>
 
                     <h3 class="property-title">
-                        <a href="{{ url_for('land_detail', slug=land.slug) if url_for is defined else '#' }}">{{ land.title }}</a>
+                        <a href="/properties/{{ land.slug }}">{{ land.title }}</a>
                     </h3>
 
                     {% if land.short_description %}
@@ -307,8 +312,10 @@
     }
 
     document.querySelectorAll('.video-wrapper[data-video-id]').forEach(function (wrapper) {
-        wrapper.addEventListener('click', function () {
-            openVideo(wrapper.dataset.videoId);
+        wrapper.addEventListener('click', function (e) {
+            if (e.target.closest('.play-btn') || e.currentTarget === wrapper) {
+                openVideo(wrapper.dataset.videoId);
+            }
         });
     });
 
