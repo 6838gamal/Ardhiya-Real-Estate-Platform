@@ -35,6 +35,27 @@
   "property.type.office": "مكتب",
   "property.type.shop": "محل",
 
+  "property.available": "عقار متاح",
+  "property.featured": "مميز",
+  "property.rooms": "غرف",
+  "property.city": "المدينة",
+  "property.district": "الحي",
+  "property.address": "العنوان",
+  "property.description": "الوصف",
+  "property.features": "المزايا",
+  "property.details": "التفاصيل",
+  "property.price_on_request": "السعر عند الطلب",
+  "property.no_results": "لا توجد عقارات مطابقة.",
+  "property.not_found": "العقار غير موجود",
+  "property.not_found_desc": "لم نتمكن من العثور على هذا العقار أو أنه لم يُنشر بعد.",
+  "property.browse_all": "تصفح جميع العقارات",
+  "property.contact_us": "تواصل معنا",
+  "property.call_now": "اتصل الآن",
+  "property.whatsapp": "واتساب",
+  "property.share": "شارك العقار",
+  "property.copy_link": "نسخ الرابط",
+  "property.link_copied": "تم نسخ الرابط",
+
   "auth.login_title": "تسجيل الدخول",
   "auth.login_google": "تسجيل الدخول عبر Google",
   "auth.login_subtitle": "سجّل دخولك للوصول إلى ميزات المنصة",
@@ -78,5 +99,7 @@
   "common.filter": "فلترة",
   "common.results": "النتائج",
   "common.no_results": "لا توجد نتائج",
-  "common.coming_soon": "قريبًا"
+  "common.coming_soon": "قريبًا",
+  "common.close": "إغلاق",
+  "common.play_video": "تشغيل الفيديو"
 }
