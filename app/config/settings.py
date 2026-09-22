@@ -90,7 +90,51 @@ class Settings:
         self.SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
         self.EMAIL_FROM: Optional[str] = os.getenv("EMAIL_FROM")
 
-    # ===== Properties =====
+    # ============================================================
+    # Helper: URL Normalization
+    # ============================================================
+    @staticmethod
+    def _normalize_db_url(url: str, target_driver: str = "psycopg2") -> str:
+        """
+        Normalize a database URL to use the specified driver.
+
+        Handles:
+        - postgres:// → postgresql:// (Heroku/Render style)
+        - postgresql:// → postgresql+<driver>://
+        - postgresql+asyncpg:// → postgresql+<driver>://
+        - postgresql+psycopg2:// → postgresql+<driver>://
+
+        Args:
+            url: The raw database URL.
+            target_driver: Either "psycopg2" (sync) or "asyncpg" (async).
+
+        Returns:
+            A properly formatted SQLAlchemy database URL.
+        """
+        if not url:
+            return url
+
+        # 1. Handle Heroku/Render legacy scheme
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+
+        # 2. Ensure we have a postgresql:// prefix (without driver)
+        if url.startswith("postgresql+asyncpg://"):
+            url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        elif url.startswith("postgresql+psycopg2://"):
+            url = url.replace("postgresql+psycopg2://", "postgresql://", 1)
+        elif url.startswith("postgresql+psycopg://"):
+            url = url.replace("postgresql+psycopg://", "postgresql://", 1)
+
+        # 3. Add the target driver
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", f"postgresql+{target_driver}://", 1)
+
+        return url
+
+    # ============================================================
+    # Properties: General
+    # ============================================================
     @property
     def languages(self) -> List[str]:
         """Get list of supported languages."""
@@ -136,13 +180,81 @@ class Settings:
         """Check if secure cookies should be used."""
         return self.COOKIE_SECURE and self.is_prod
 
+    # ============================================================
+    # Properties: Database URLs
+    # ============================================================
     @property
     def database_url(self) -> str:
-        """Get database URI (use DATABASE_URL if provided, else construct)."""
-        if self.DATABASE_URL:
-            return self.DATABASE_URL
-        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        """
+        Get SYNC database URL (psycopg2 driver).
 
+        This is the default URL used across the application
+        (create_engine, SessionLocal, Alembic, etc.).
+
+        Automatically normalizes:
+        - postgres:// → postgresql+psycopg2://
+        - postgresql+asyncpg:// → postgresql+psycopg2://
+
+        Returns:
+            A SQLAlchemy-compatible sync database URL.
+        """
+        if self.DATABASE_URL:
+            return self._normalize_db_url(self.DATABASE_URL, target_driver="psycopg2")
+        return (
+            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
+
+    @property
+    def sync_database_url(self) -> str:
+        """
+        Explicit alias for `database_url` (sync / psycopg2).
+
+        Use this when you want to be explicit about the driver,
+        e.g., for `create_engine(...)` or Alembic.
+        """
+        return self.database_url
+
+    @property
+    def async_database_url(self) -> str:
+        """
+        Get ASYNC database URL (asyncpg driver).
+
+        Use this only if you switch to `create_async_engine` +
+        `AsyncSession` + `await` everywhere.
+
+        Automatically normalizes:
+        - postgres:// → postgresql+asyncpg://
+        - postgresql+psycopg2:// → postgresql+asyncpg://
+        """
+        if self.DATABASE_URL:
+            return self._normalize_db_url(self.DATABASE_URL, target_driver="asyncpg")
+        return (
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
+
+    @property
+    def database_url_safe(self) -> str:
+        """
+        Get database URL with password masked (for logging).
+
+        Example:
+            postgresql+psycopg2://user:***@host:5432/dbname
+        """
+        url = self.database_url
+        if "@" in url and "://" in url:
+            scheme, rest = url.split("://", 1)
+            if "@" in rest:
+                creds, host = rest.split("@", 1)
+                if ":" in creds:
+                    user, _ = creds.split(":", 1)
+                    return f"{scheme}://{user}:***@{host}"
+        return url
+
+    # ============================================================
+    # Properties: CORS
+    # ============================================================
     @property
     def allowed_origins_list(self) -> List[str]:
         """Get allowed origins as list."""
@@ -158,6 +270,9 @@ class Settings:
         """Get allowed headers as list."""
         return [header.strip() for header in self.ALLOWED_HEADERS.split(",") if header.strip()]
 
+    # ============================================================
+    # Properties: Google OAuth
+    # ============================================================
     @property
     def google_oauth_scopes(self) -> List[str]:
         """Get Google OAuth scopes."""
@@ -183,11 +298,17 @@ class Settings:
         """Get Google JWKS URL for token verification."""
         return "https://www.googleapis.com/oauth2/v3/certs"
 
+    # ============================================================
+    # Properties: Rate Limiting
+    # ============================================================
     @property
     def rate_limit_period_seconds(self) -> int:
         """Get rate limit period in seconds."""
         return self.RATE_LIMIT_PERIOD
 
+    # ============================================================
+    # Helpers: URLs
+    # ============================================================
     def get_frontend_url(self, path: str = "") -> str:
         """Get frontend URL with optional path."""
         base = self.FRONTEND_URL.rstrip("/")
