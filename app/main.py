@@ -36,6 +36,11 @@ from app.modules.users.services import UserService
 from app.modules.users.models import User
 from app.config.database import engine, SessionLocal
 
+# ✅ NEW: استيرادات قراءة العقارات
+from sqlalchemy.orm import Session
+from app.config.database import get_db
+from app.repositories.lands_repo import LandsRepository
+
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -405,29 +410,111 @@ async def home(
     return templates.TemplateResponse("home.html", ctx)
 
 
-@app.get("/properties", response_class=HTMLResponse)
+# ============================================================
+# ✏️ UPDATED: /properties — قائمة العقارات مع الفلترة والترقيم
+# ============================================================
+@app.get("/properties", response_class=HTMLResponse, name="properties_list")
 async def properties(
     request: Request,
+    db: Session = Depends(get_db),
     lang: str = Depends(get_lang),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    land_type: str | None = None,
+    purpose: str | None = None,
+    city: str | None = None,
+    page: int = 1,
 ):
-    """Properties listing page."""
+    """Properties listing page with filtering and pagination."""
+    per_page = 24
+    offset = max(0, (page - 1) * per_page)
+
+    repo = LandsRepository(db)
+
+    try:
+        lands = repo.list_published(
+            land_type=land_type,
+            purpose=purpose,
+            city=city,
+            limit=per_page,
+            offset=offset,
+        )
+        total = repo.count_published(
+            land_type=land_type,
+            purpose=purpose,
+            city=city,
+        )
+        cities = repo.list_cities()
+    except Exception as e:
+        logger.exception("Error loading properties: %s", e)
+        # فشل آمن: صفحة فارغة بدل 500
+        lands, total, cities = [], 0, []
+
     ctx = await render_context(
-        request, lang, current_user=current_user, active_page="properties"
+        request, lang,
+        current_user=current_user,
+        active_page="properties",
+        lands=lands,
+        cities=cities,
+        filters={
+            "land_type": land_type,
+            "purpose": purpose,
+            "city": city,
+        },
+        pagination={
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if per_page else 0,
+        },
     )
     return templates.TemplateResponse("properties/index.html", ctx)
 
 
-@app.get("/properties/{property_id}", response_class=HTMLResponse)
+# ============================================================
+# ✏️ UPDATED: /properties/{slug} — تفاصيل عقار بالـ slug
+# ============================================================
+@app.get("/properties/{slug}", response_class=HTMLResponse, name="property_detail")
 async def property_detail(
     request: Request,
-    property_id: int,
+    slug: str,
+    db: Session = Depends(get_db),
     lang: str = Depends(get_lang),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Property detail page."""
+    """Property detail page by slug."""
+    repo = LandsRepository(db)
+
+    try:
+        land = repo.get_by_slug(slug)
+    except Exception as e:
+        logger.exception("Error loading property %s: %s", slug, e)
+        land = None
+
+    if land is None:
+        ctx = await render_context(
+            request, lang,
+            current_user=current_user,
+            active_page="properties",
+            land=None,
+            similar=[],
+        )
+        return templates.TemplateResponse(
+            "properties/detail.html", ctx, status_code=404
+        )
+
+    try:
+        similar = repo.list_similar(land, limit=3)
+    except Exception as e:
+        logger.warning("Error loading similar lands: %s", e)
+        similar = []
+
     ctx = await render_context(
-        request, lang, current_user=current_user, active_page="properties"
+        request, lang,
+        current_user=current_user,
+        active_page="properties",
+        land=land,
+        similar=similar,
+        contact_phone=getattr(settings, "CONTACT_PHONE", "+966500000000"),
     )
     return templates.TemplateResponse("properties/detail.html", ctx)
 
