@@ -12,11 +12,18 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 from fastapi import FastAPI, Request, Depends, Response, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    JSONResponse,
+    FileResponse,
+    PlainTextResponse,
+)
 
 # إعداد logging
 logging.basicConfig(
@@ -36,7 +43,7 @@ from app.modules.users.services import UserService
 from app.modules.users.models import User
 from app.config.database import engine, SessionLocal
 
-# ✅ NEW: استيرادات قراءة العقارات
+# ✅ استيرادات قراءة العقارات
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.repositories.lands_repo import LandsRepository
@@ -57,29 +64,21 @@ async def run_migrations():
     """
     print("🔄 جاري تشغيل ترحيلات قاعدة البيانات...")
 
-    # حفظ URL الأصلي لاستعادته لاحقًا
     original_db_url = os.environ.get("DATABASE_URL")
 
     try:
-        # ✅ استخدم دائمًا الـ URL المُحوَّل من settings (psycopg2)
         db_url = settings.database_url
-
-        # ✅ طباعة آمنة (بدون كشف كلمة المرور)
         print(f"📊 استخدام قاعدة البيانات (لـ Alembic): {settings.database_url_safe}")
 
-        # تعيين DATABASE_URL في متغيرات البيئة ليستخدمها alembic.ini
         os.environ["DATABASE_URL"] = db_url
 
-        # الحصول على مسار المشروع
         project_dir = os.getcwd()
         alembic_ini_path = os.path.join(project_dir, "alembic.ini")
 
-        # التحقق من وجود ملف alembic.ini
         if not os.path.exists(alembic_ini_path):
             print("⚠️ ملف alembic.ini غير موجود. تخطي تشغيل الترحيلات.")
             return False
 
-        # تشغيل alembic upgrade head باستخدام subprocess
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
@@ -92,14 +91,12 @@ async def run_migrations():
             print("✅ تم تشغيل الترحيلات بنجاح")
             if result.stdout:
                 lines = [l for l in result.stdout.strip().split('\n') if l.strip()]
-                for line in lines[-5:]:  # عرض آخر 5 أسطر فقط
+                for line in lines[-5:]:
                     print(f"   {line}")
             return True
 
-        # قد يكون الخطأ بسبب عدم وجود ترحيلات جديدة
         error_msg = result.stderr.strip() if result.stderr else "خطأ غير معروف"
 
-        # أخطاء شائعة غير حرجة
         non_fatal_markers = [
             "No such revision",
             "target database is not up to date",
@@ -120,7 +117,6 @@ async def run_migrations():
         print(f"⚠️ خطأ غير متوقع في تشغيل الترحيلات: {str(e)}")
         return False
     finally:
-        # ✅ استعادة DATABASE_URL الأصلي بشكل صحيح
         if original_db_url is not None:
             os.environ["DATABASE_URL"] = original_db_url
         elif "DATABASE_URL" in os.environ:
@@ -130,9 +126,6 @@ async def run_migrations():
 def ensure_database_schema():
     """
     التأكد من وجود جميع الأعمدة المطلوبة في قاعدة البيانات.
-
-    يستخدم SessionLocal المتزامن (psycopg2) — آمن من داخل lifespan
-    لأنه لا يحتوي على أي await.
     """
     print("🔧 جاري التحقق من هيكل قاعدة البيانات...")
 
@@ -149,7 +142,6 @@ def ensure_database_schema():
         if users_exists:
             print("✅ جدول 'users' موجود")
 
-            # ✅ أنواع الأعمدة الصحيحة بدل VARCHAR(500) للجميع
             users_columns = {
                 "avatar_url": "VARCHAR(500)",
                 "phone": "VARCHAR(50)",
@@ -214,13 +206,11 @@ def init_database():
         from app.modules.auth.security import get_password_hash
         from sqlalchemy import select, func
 
-        # ✅ عدّ المستخدمين بكفاءة بدل جلبهم جميعًا
         count = db.execute(select(func.count()).select_from(User)).scalar() or 0
 
         if count == 0:
             print("📝 لا يوجد مستخدمين. جاري إنشاء المستخدم الافتراضي...")
 
-            # ✅ قراءة كلمة المرور من env للأمان
             default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin@123")
             default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@ardiya.com")
 
@@ -256,17 +246,12 @@ def init_database():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager for startup and shutdown events.
-    """
+    """Lifespan context manager for startup and shutdown events."""
     print("🚀 Starting application...")
-    # ✅ طباعة آمنة (بدون كشف كلمة المرور)
     print(f"📊 Database: {settings.database_url_safe}")
     print(f"🌍 Environment: {settings.APP_ENV}")
 
-    # ============================================================
-    # الخطوة 0: تنظيف الجلسات منتهية الصلاحية (مع تجاهل الأخطاء)
-    # ============================================================
+    # الخطوة 0: تنظيف الجلسات منتهية الصلاحية
     db = SessionLocal()
     try:
         session_service = SessionService(db)
@@ -274,7 +259,6 @@ async def lifespan(app: FastAPI):
         if expired_count > 0:
             print(f"🧹 تم تنظيف {expired_count} جلسة منتهية الصلاحية")
     except Exception as e:
-        # تجاهل الخطأ إذا كان الجدول غير موجود
         err = str(e).lower()
         if "relation" in err and "does not exist" in err:
             print("ℹ️ جدول الجلسات غير موجود بعد، سيتم إنشاؤه في الترحيلات")
@@ -283,27 +267,18 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    # ============================================================
     # الخطوة 1: تشغيل ترحيلات Alembic
-    # ============================================================
     await run_migrations()
 
-    # ============================================================
     # الخطوة 2: التحقق من هيكل قاعدة البيانات
-    # ============================================================
     ensure_database_schema()
 
-    # ============================================================
     # الخطوة 3: تهيئة قاعدة البيانات
-    # ============================================================
     init_database()
 
     print("✅ التطبيق جاهز للاستخدام!")
     yield
 
-    # ============================================================
-    # إيقاف التطبيق
-    # ============================================================
     print("🛑 Shutting down application...")
     engine.dispose()
     print("✅ Database connection closed.")
@@ -346,6 +321,7 @@ async def render_context(
     request: Request,
     lang: str,
     current_user: Optional[User] = None,
+    active_page: str = "",
     **extra
 ) -> dict:
     """Render template context with user info."""
@@ -377,7 +353,6 @@ async def render_context(
             "name": current_user.name,
             "email": current_user.email,
             "role": current_user.role,
-            # ✅ استخدام getattr لتجنب AttributeError
             "avatar_url": getattr(current_user, "avatar_url", None),
             "picture": getattr(current_user, "avatar_url", None),
             "is_authenticated": True,
@@ -392,11 +367,14 @@ async def render_context(
         "languages": get_available_languages(),
         "debug": settings.DEBUG,
         "current_user": user_dict,
+        "active_page": active_page,
         **extra,
     }
 
 
-# ===== Home Routes =====
+# ============================================================
+# Home Routes
+# ============================================================
 @app.get("/", response_class=HTMLResponse)
 async def home(
     request: Request,
@@ -411,7 +389,7 @@ async def home(
 
 
 # ============================================================
-# ✏️ UPDATED: /properties — قائمة العقارات مع الفلترة والترقيم
+# Properties Routes
 # ============================================================
 @app.get("/properties", response_class=HTMLResponse, name="properties_list")
 async def properties(
@@ -446,7 +424,6 @@ async def properties(
         cities = repo.list_cities()
     except Exception as e:
         logger.exception("Error loading properties: %s", e)
-        # فشل آمن: صفحة فارغة بدل 500
         lands, total, cities = [], 0, []
 
     ctx = await render_context(
@@ -470,9 +447,6 @@ async def properties(
     return templates.TemplateResponse("properties/index.html", ctx)
 
 
-# ============================================================
-# ✏️ UPDATED: /properties/{slug} — تفاصيل عقار بالـ slug
-# ============================================================
 @app.get("/properties/{slug}", response_class=HTMLResponse, name="property_detail")
 async def property_detail(
     request: Request,
@@ -519,6 +493,9 @@ async def property_detail(
     return templates.TemplateResponse("properties/detail.html", ctx)
 
 
+# ============================================================
+# Other User Pages
+# ============================================================
 @app.get("/favorites", response_class=HTMLResponse)
 async def favorites(
     request: Request,
@@ -551,10 +528,7 @@ async def login_page(
     lang: str = Depends(get_lang),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """
-    Login page.
-    Redirect to dashboard if already authenticated.
-    """
+    """Login page. Redirect to dashboard if already authenticated."""
     if current_user:
         return RedirectResponse(
             url="/dashboard",
@@ -577,10 +551,7 @@ async def dashboard(
     lang: str = Depends(get_lang),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Dashboard page.
-    Requires authentication.
-    """
+    """Dashboard page. Requires authentication."""
     ctx = await render_context(
         request, lang, current_user=current_user, active_page="dashboard"
     )
@@ -593,10 +564,7 @@ async def admin_panel(
     lang: str = Depends(get_lang),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Admin panel page.
-    Requires authentication and admin role.
-    """
+    """Admin panel page. Requires authentication and admin role."""
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -635,7 +603,9 @@ async def settings_page(
     return templates.TemplateResponse("settings.html", ctx)
 
 
-# ===== AI Chat Route =====
+# ============================================================
+# AI Chat
+# ============================================================
 @app.get("/ai-chat", response_class=HTMLResponse)
 async def ai_chat(
     request: Request,
@@ -649,16 +619,18 @@ async def ai_chat(
     return templates.TemplateResponse("ai-chat/index.html", ctx)
 
 
-# ===== Language Switcher =====
+# ============================================================
+# Language Switcher — POST (للطلبات من JS)
+# ============================================================
 @app.post("/set-lang/{lang_code}")
-async def set_lang(lang_code: str, response: Response):
-    """Set language cookie."""
+async def set_lang_post(lang_code: str, response: Response):
+    """Set language cookie via POST."""
     if lang_code in settings.languages:
         response.set_cookie(
             key="lang",
             value=lang_code,
             httponly=settings.COOKIE_HTTPONLY,
-            max_age=31536000,  # 1 year
+            max_age=31536000,
             secure=settings.is_secure_cookie,
             samesite=settings.COOKIE_SAMESITE
         )
@@ -669,7 +641,43 @@ async def set_lang(lang_code: str, response: Response):
     )
 
 
-# ===== Health Check =====
+# ============================================================
+# Language Switcher — GET (للروابط والنقر المباشر)
+# ============================================================
+@app.get("/set-lang/{lang_code}")
+async def set_lang_get(
+    request: Request,
+    lang_code: str,
+    next: str = "/"
+):
+    """
+    Set language cookie via GET and redirect back.
+    
+    مثال: /set-lang/en?next=/properties
+    """
+    # تأمين الـ redirect لمنع Open Redirect
+    target = unquote(next or "/")
+    if not target.startswith("/") or target.startswith("//"):
+        target = "/"
+
+    response = RedirectResponse(url=target, status_code=303)
+
+    if lang_code in settings.languages:
+        response.set_cookie(
+            key="lang",
+            value=lang_code,
+            httponly=settings.COOKIE_HTTPONLY,
+            max_age=31536000,
+            secure=settings.is_secure_cookie,
+            samesite=settings.COOKIE_SAMESITE
+        )
+
+    return response
+
+
+# ============================================================
+# Health Check
+# ============================================================
 @app.get("/health")
 async def health():
     """Health check endpoint."""
@@ -681,7 +689,18 @@ async def health():
     }
 
 
-# ===== Favicon (لتجنب 404 المتكرر) =====
+# ============================================================
+# HEAD / — لدعم فحص Render الصحي
+# ============================================================
+@app.head("/")
+async def head_root():
+    """Support HEAD requests for health checks (e.g. Render)."""
+    return Response(status_code=200)
+
+
+# ============================================================
+# Favicon
+# ============================================================
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     """Serve favicon if present; otherwise return 204 No Content."""
@@ -691,7 +710,9 @@ async def favicon():
     return Response(status_code=204)
 
 
-# ===== Exception Handlers =====
+# ============================================================
+# Exception Handlers
+# ============================================================
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Custom HTTP exception handler."""
@@ -713,7 +734,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-# ===== Middleware =====
+# ============================================================
+# Middleware
+# ============================================================
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Add security headers to all responses."""
@@ -732,7 +755,9 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# ===== Static Pages =====
+# ============================================================
+# Static Pages
+# ============================================================
 @app.get("/about", response_class=HTMLResponse)
 async def about(
     request: Request,
