@@ -2,6 +2,17 @@
   "site.name": "أرضية",
   "site.tagline": "منصتك العقارية",
 
+  
+  "nav.profile": "الملف الشخصي",
+  "nav.settings": "الإعدادات",
+  "role.admin": "مدير",
+  "role.owner": "مالك",
+  "role.buyer": "مشتري",
+  "role.user": "مستخدم",
+  "common.confirm_logout": "هل أنت متأكد من رغبتك في تسجيل الخروج؟",
+  "auth.login_success": "تم تسجيل الدخول بنجاح",
+  "auth.logout_success": "تم تسجيل الخروج بنجاح",
+  
   "nav.home": "الرئيسية",
   "nav.properties": "العقارات",
   "nav.favorites": "المفضلة",
