@@ -40,7 +40,9 @@
 
             <div class="header-actions">
                 <div class="lang-switcher">
-                    <button class="icon-btn" id="langBtn" aria-label="Language">
+                    <!-- ✅ onclick مباشر كطبقة حماية أولى -->
+                    <button class="icon-btn" id="langBtn" type="button" aria-label="Language"
+                            onclick="window.toggleLangDropdown && window.toggleLangDropdown(event)">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
@@ -49,7 +51,9 @@
                     <div class="lang-dropdown" id="langDropdown">
                         {% for l in languages %}
                         <button class="lang-option {{ 'selected' if l.code == lang else '' }}"
-                                data-lang="{{ l.code }}">
+                                type="button"
+                                data-lang="{{ l.code }}"
+                                onclick="window.selectLanguage && window.selectLanguage('{{ l.code }}', event)">
                             {{ l.name }}
                         </button>
                         {% endfor %}
@@ -145,7 +149,7 @@
                 lang: "/set-lang/"
             },
 
-            // ✅ استخدام lang و dir بدل current_lang و direction
+            // Current context
             currentLang: {{ (lang or 'ar') | tojson }},
             direction: {{ (dir or 'rtl') | tojson }}
         };
@@ -472,6 +476,72 @@
             background: #450a0a;
         }
 
+        /* ===== Language Dropdown (إضافة) ===== */
+        .lang-switcher {
+            position: relative;
+        }
+
+        .lang-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            min-width: 160px;
+            background: var(--bg-card, #ffffff);
+            border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            padding: 0.5rem;
+            border: 1px solid var(--border-color, #e2e8f0);
+            z-index: 10000;
+        }
+
+        [dir="rtl"] .lang-dropdown {
+            right: auto;
+            left: 0;
+        }
+
+        [data-theme="dark"] .lang-dropdown {
+            background: var(--bg-card, #1e293b);
+            border-color: var(--border-color, #334155);
+        }
+
+        .lang-dropdown.show {
+            display: block !important;
+        }
+
+        .lang-option {
+            display: block;
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            text-align: start;
+            background: none;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-family: 'Inter', 'Cairo', sans-serif;
+            color: var(--text-primary, #0f172a);
+            transition: background 0.15s;
+        }
+
+        [data-theme="dark"] .lang-option {
+            color: var(--text-primary, #f1f5f9);
+        }
+
+        .lang-option:hover {
+            background: var(--bg-secondary, #f1f5f9);
+        }
+
+        [data-theme="dark"] .lang-option:hover {
+            background: var(--bg-secondary, #0f172a);
+        }
+
+        .lang-option.selected {
+            background: var(--primary-color, #2563eb);
+            color: #fff;
+            font-weight: 600;
+        }
+
         /* ===== Floating Chat Button ===== */
         .chat-float {
             position: fixed;
@@ -608,46 +678,94 @@
             console.log('✅ [base.html] Script loaded');
 
             // =============================================
-            // ✅ علم لمنع التحديث المتكرر
+            // ✅ Language Switcher — GLOBAL FUNCTIONS
+            // (طبقة حماية أولى: onclick مباشر)
+            // =============================================
+            window.toggleLangDropdown = function(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                const dd = document.getElementById('langDropdown');
+                if (dd) {
+                    dd.classList.toggle('show');
+                    console.log('🌐 Lang dropdown toggled:', dd.classList.contains('show'));
+                }
+            };
+
+            window.selectLanguage = function(langCode, e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                if (!langCode) return;
+
+                const base = (window.I18N && window.I18N.urls && window.I18N.urls.lang) || '/set-lang/';
+                const currentPath = window.location.pathname + window.location.search;
+                const url = `${base}${langCode}?next=${encodeURIComponent(currentPath)}`;
+
+                console.log('🌐 Switching language:', url);
+                window.location.href = url;
+            };
+
+            // =============================================
+            // ✅ Language Switcher — Event Delegation (useCapture)
+            // (طبقة حماية ثانية: تعمل حتى لو تعطل onclick)
+            // =============================================
+            document.addEventListener('click', function(e) {
+                // فتح/إغلاق القائمة
+                if (e.target.closest('#langBtn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dd = document.getElementById('langDropdown');
+                    if (dd) dd.classList.toggle('show');
+                    return;
+                }
+
+                // اختيار لغة
+                const option = e.target.closest('.lang-option');
+                if (option) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const lang = option.dataset.lang;
+                    if (lang) {
+                        const base = (window.I18N && window.I18N.urls && window.I18N.urls.lang) || '/set-lang/';
+                        const currentPath = window.location.pathname + window.location.search;
+                        window.location.href = `${base}${lang}?next=${encodeURIComponent(currentPath)}`;
+                    }
+                    return;
+                }
+
+                // إغلاق عند النقر خارج القائمة
+                const dd = document.getElementById('langDropdown');
+                if (dd && !e.target.closest('.lang-switcher')) {
+                    dd.classList.remove('show');
+                }
+            }, true); // ← useCapture = true
+
+            // =============================================
+            // ✅ Auth UI
             // =============================================
             let authCheckDone = false;
             let authCheckInProgress = false;
 
-            // =============================================
-            // ✅ التحقق من حالة المصادقة وعرض الـ UI
-            // =============================================
             async function updateAuthUI() {
                 const authSection = document.getElementById('authSection');
-                if (!authSection) {
-                    console.error('❌ authSection not found!');
-                    return;
-                }
+                if (!authSection) return;
 
-                if (authCheckInProgress) {
-                    console.log('⏭️ Auth check already in progress, skipping');
-                    return;
-                }
+                if (authCheckInProgress) return;
                 authCheckInProgress = true;
-
-                console.log('🔄 updateAuthUI() called');
 
                 try {
                     const response = await fetch('/auth/google/session', {
                         method: 'GET',
                         credentials: 'include',
-                        headers: {
-                            'Accept': 'application/json',
-                        }
+                        headers: { 'Accept': 'application/json' }
                     });
-
-                    console.log(`📥 Session response status: ${response.status}`);
 
                     if (response.ok) {
                         const data = await response.json();
-                        console.log('📦 Session data:', data);
-
                         if (data && data.user_id) {
-                            console.log('✅ User is authenticated, rendering user menu');
                             renderUserMenu(authSection, data);
                             authCheckDone = true;
                             authCheckInProgress = false;
@@ -655,10 +773,8 @@
                         }
                     }
 
-                    console.log('❌ User is not authenticated, rendering login button');
                     renderLoginButton(authSection);
                     authCheckDone = true;
-
                 } catch (error) {
                     console.error('❌ Auth check failed:', error);
                     renderLoginButton(authSection);
@@ -668,9 +784,6 @@
                 }
             }
 
-            // =============================================
-            // ✅ عرض قائمة المستخدم
-            // =============================================
             function renderUserMenu(container, userData) {
                 const name = userData.name || window.I18N.user;
                 const email = userData.email || '';
@@ -678,7 +791,6 @@
                 const role = userData.role || 'user';
                 const initial = name.charAt(0).toUpperCase();
 
-                // ✅ ترجمة الـ role
                 const roleLabels = {
                     admin: window.I18N.roleAdmin,
                     owner: window.I18N.roleOwner,
@@ -754,41 +866,19 @@
                 });
             }
 
-            // =============================================
-            // ✅ عرض زر تسجيل الدخول
-            // =============================================
             function renderLoginButton(container) {
                 container.innerHTML = `
                     <a href="${window.I18N.urls.login}" class="btn btn-primary btn-login">${window.I18N.login}</a>
                 `;
             }
 
-            // =============================================
-            // ✅ إعداد مستمعي الأحداث للـ dropdown
-            // =============================================
             function setupUserDropdown() {
                 const toggle = document.getElementById('userDropdown');
                 const menu = document.getElementById('userDropdownMenu');
-                const userMenu = document.querySelector('.user-menu');
-                const avatar = document.querySelector('.user-avatar, .user-avatar-placeholder');
-                const userName = document.querySelector('.user-name');
-
-                console.log('🔧 setupUserDropdown:', {
-                    toggle: !!toggle,
-                    menu: !!menu,
-                    userMenu: !!userMenu
-                });
-
-                if (!toggle || !menu) {
-                    console.error('❌ Dropdown elements not found!');
-                    return;
-                }
+                if (!toggle || !menu) return;
 
                 function toggleDropdown(e) {
-                    if (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
+                    if (e) { e.preventDefault(); e.stopPropagation(); }
                     const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
                     toggle.setAttribute('aria-expanded', String(!isExpanded));
                     menu.classList.toggle('show');
@@ -800,6 +890,7 @@
                 toggle._dropdownHandler = toggleDropdown;
                 toggle.addEventListener('click', toggleDropdown);
 
+                const avatar = document.querySelector('.user-avatar, .user-avatar-placeholder');
                 if (avatar) {
                     if (avatar._dropdownHandler) {
                         avatar.removeEventListener('click', avatar._dropdownHandler);
@@ -808,6 +899,7 @@
                     avatar.addEventListener('click', toggleDropdown);
                 }
 
+                const userName = document.querySelector('.user-name');
                 if (userName) {
                     if (userName._dropdownHandler) {
                         userName.removeEventListener('click', userName._dropdownHandler);
@@ -818,17 +910,13 @@
 
                 if (!document._dropdownOutsideHandler) {
                     document._dropdownOutsideHandler = function(e) {
-                        const menu = document.getElementById('userDropdownMenu');
-                        const toggle = document.getElementById('userDropdown');
-                        const userMenu = document.querySelector('.user-menu');
-
-                        if (!menu || !userMenu) return;
-
-                        if (!userMenu.contains(e.target)) {
-                            menu.classList.remove('show');
-                            if (toggle) {
-                                toggle.setAttribute('aria-expanded', 'false');
-                            }
+                        const m = document.getElementById('userDropdownMenu');
+                        const t = document.getElementById('userDropdown');
+                        const u = document.querySelector('.user-menu');
+                        if (!m || !u) return;
+                        if (!u.contains(e.target)) {
+                            m.classList.remove('show');
+                            if (t) t.setAttribute('aria-expanded', 'false');
                         }
                     };
                     document.addEventListener('click', document._dropdownOutsideHandler);
@@ -836,11 +924,10 @@
             }
 
             // =============================================
-            // ✅ دالة تسجيل الخروج
+            // ✅ Logout
             // =============================================
             window.logoutUser = function() {
                 if (confirm(window.I18N.confirmLogout)) {
-                    console.log('🔄 Logging out...');
                     fetch(window.I18N.urls.logout, {
                         method: 'POST',
                         credentials: 'include',
@@ -851,7 +938,6 @@
                     })
                     .then(response => response.json())
                     .then(data => {
-                        console.log('📥 Logout response:', data);
                         if (data.success) {
                             window.location.href = '/login?success=1';
                         } else {
@@ -863,36 +949,6 @@
                     });
                 }
             };
-
-            // =============================================
-            // ✅ Language Switcher
-            // =============================================
-            const langBtn = document.getElementById('langBtn');
-            const langDropdown = document.getElementById('langDropdown');
-
-            if (langBtn && langDropdown) {
-                langBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    langDropdown.classList.toggle('show');
-                });
-
-                langDropdown.querySelectorAll('.lang-option').forEach(option => {
-                    option.addEventListener('click', function() {
-                        const lang = this.dataset.lang;
-                        if (lang) {
-                            const currentPath = window.location.pathname + window.location.search;
-                            // ✅ استخدام /set-lang/ المطابق لـ main.py
-                            window.location.href = `${window.I18N.urls.lang}${lang}?next=${encodeURIComponent(currentPath)}`;
-                        }
-                    });
-                });
-
-                document.addEventListener('click', function(e) {
-                    if (!langDropdown.contains(e.target) && !langBtn.contains(e.target)) {
-                        langDropdown.classList.remove('show');
-                    }
-                });
-            }
 
             // =============================================
             // ✅ Theme Toggle
@@ -913,7 +969,6 @@
             // =============================================
             const menuToggle = document.getElementById('menuToggle');
             const mainNav = document.getElementById('mainNav');
-
             if (menuToggle && mainNav) {
                 menuToggle.addEventListener('click', function() {
                     const isExpanded = this.getAttribute('aria-expanded') === 'true';
@@ -923,37 +978,27 @@
             }
 
             // =============================================
-            // ✅ Auto-close dropdowns on escape key
+            // ✅ Escape key closes dropdowns
             // =============================================
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
-                    document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
-                        menu.classList.remove('show');
-                    });
-                    document.querySelectorAll('.lang-dropdown.show').forEach(dropdown => {
-                        dropdown.classList.remove('show');
-                    });
-                    const toggle = document.getElementById('userDropdown');
-                    if (toggle) {
-                        toggle.setAttribute('aria-expanded', 'false');
-                    }
+                    document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+                    document.querySelectorAll('.lang-dropdown.show').forEach(d => d.classList.remove('show'));
+                    const t = document.getElementById('userDropdown');
+                    if (t) t.setAttribute('aria-expanded', 'false');
                 }
             });
 
             // =============================================
-            // ✅ التحقق من حالة المصادقة عند تحميل الصفحة
+            // ✅ Init Auth UI
             // =============================================
             document.addEventListener('DOMContentLoaded', function() {
-                console.log('🔄 DOM loaded - Checking authentication status...');
+                console.log('🔄 DOM loaded - Checking auth status...');
                 updateAuthUI();
             });
 
-            // =============================================
-            // ✅ إعادة التحقق عند العودة للصفحة (bfcache)
-            // =============================================
             window.addEventListener('pageshow', function(event) {
                 if (event.persisted) {
-                    console.log('🔄 Page restored from bfcache, re-checking auth...');
                     authCheckDone = false;
                     updateAuthUI();
                 }
