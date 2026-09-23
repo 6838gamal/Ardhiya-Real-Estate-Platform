@@ -1,20 +1,23 @@
 {% extends "base.html" %}
 
 {% block content %}
-{# ==== حماية ضد المتغيرات غير المُمرَّرة ==== #}
 {% set filters = filters | default({}, true) %}
 {% set cities  = cities  | default([], true) %}
 {% set lands   = lands   | default([], true) %}
 
 <section class="page-section">
     <div class="container">
+
+        <!-- ====== رأس الصفحة ====== -->
         <div class="page-header">
             <h1 class="page-title">{{ _('nav.properties') }}</h1>
-            {% if lands|length > 0 %}
-                <p class="page-subtitle">{{ lands|length }} {{ _('property.available') }}</p>
-            {% else %}
-                <p class="page-subtitle">{{ _('common.coming_soon') }}</p>
-            {% endif %}
+            <p class="page-subtitle">
+                {% if lands|length > 0 %}
+                    {{ lands|length }} {{ _('property.available') }}
+                {% else %}
+                    {{ _('common.coming_soon') }}
+                {% endif %}
+            </p>
         </div>
 
         <!-- ====== شريط الفلترة ====== -->
@@ -44,7 +47,12 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-outline">{{ _('common.filter') }}</button>
+            <button type="submit" class="btn-filter">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                </svg>
+                {{ _('common.filter') }}
+            </button>
         </form>
 
         <!-- ====== شبكة العقارات ====== -->
@@ -52,282 +60,375 @@
         <div class="property-grid">
             {% for land in lands %}
             <article class="property-card">
+                <a href="/properties/{{ land.slug }}" class="card-link">
 
-                {% if land.video_id %}
-                <!-- فيديو -->
-                <div class="video-wrapper" data-video-id="{{ land.video_id }}">
-                    <img
-                        class="video-thumb"
-                        src="{{ land.cover_image or 'https://img.youtube.com/vi/' ~ land.video_id ~ '/maxresdefault.jpg' }}"
-                        alt="{{ land.title }}"
-                        loading="lazy"
-                    >
-                    <button class="play-btn" type="button" aria-label="{{ _('common.play_video') }}">
-                        <svg width="68" height="48" viewBox="0 0 68 48">
-                            <path d="M66.52 7.74a8.36 8.36 0 0 0-5.88-5.9C55.4.7 34 .7 34 .7s-21.4 0-26.64 1.14a8.36 8.36 0 0 0-5.88 5.9C.34 13 .34 24 .34 24s0 11 1.14 16.26a8.36 8.36 0 0 0 5.88 5.9C12.6 47.3 34 47.3 34 47.3s21.4 0 26.64-1.14a8.36 8.36 0 0 0 5.88-5.9C67.66 35 67.66 24 67.66 24s0-11-1.14-16.26z" fill="#f00"/>
-                            <path d="M27 34l18-10-18-10v20z" fill="#fff"/>
-                        </svg>
-                    </button>
-                </div>
+                    <!-- الصورة -->
+                    <div class="card-media">
+                        {% if land.cover_image %}
+                            <img src="{{ land.cover_image }}" alt="{{ land.title }}" loading="lazy">
+                        {% else %}
+                            <div class="card-placeholder">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <path d="M21 15l-5-5L5 21"/>
+                                </svg>
+                                <span>{{ _('common.no_results') }}</span>
+                            </div>
+                        {% endif %}
 
-                {% elif land.cover_image %}
-                <!-- صورة غلاف -->
-                <div class="video-wrapper">
-                    <img class="video-thumb" src="{{ land.cover_image }}" alt="{{ land.title }}" loading="lazy">
-                </div>
-                {% endif %}
+                        <!-- الشارات فوق الصورة -->
+                        <div class="card-badges">
+                            {% if land.featured %}
+                                <span class="badge badge-featured">⭐ {{ _('property.featured') }}</span>
+                            {% endif %}
+                            {% if land.purpose %}
+                                <span class="badge badge-purpose">
+                                    {{ _('property.status.for_sale') if land.purpose == 'sale' else _('property.status.for_rent') }}
+                                </span>
+                            {% endif %}
+                        </div>
 
-                <div class="property-info">
-                    <div class="property-badges">
-                        {% if land.featured %}<span class="badge badge-featured">{{ _('property.featured') }}</span>{% endif %}
-                        {% if land.purpose %}
-                            <span class="badge badge-purpose">
-                                {{ _('property.status.for_sale') if land.purpose == 'sale' else _('property.status.for_rent') }}
-                            </span>
+                        <!-- السعر فوق الصورة -->
+                        {% if land.price and land.price > 0 %}
+                        <div class="card-price">
+                            {{ land.price|int }} <span>{{ land.currency }}</span>
+                        </div>
                         {% endif %}
                     </div>
 
-                    <h3 class="property-title">
-                        <a href="/properties/{{ land.slug }}">{{ land.title }}</a>
-                    </h3>
+                    <!-- المحتوى -->
+                    <div class="card-body">
+                        <h3 class="card-title">{{ land.title }}</h3>
 
-                    {% if land.short_description %}
-                        <p class="property-desc">{{ land.short_description }}</p>
-                    {% endif %}
-
-                    <p class="property-meta">
-                        {% if land.area %}{{ _('property.area') }}: {{ land.area }} م²{% endif %}
-                        {% if land.rooms %} · {{ land.rooms }} {{ _('property.rooms') }}{% endif %}
-                        {% if land.bathrooms %} · {{ land.bathrooms }} {{ _('property.bathrooms') }}{% endif %}
-                    </p>
-
-                    {% if land.city or land.district %}
-                        <p class="property-location">
-                            📍 {{ land.city }}{% if land.district %} – {{ land.district }}{% endif %}
-                        </p>
-                    {% endif %}
-
-                    <p class="property-price">
-                        {% if land.price and land.price > 0 %}
-                            {{ land.price|int }} {{ land.currency }}
-                        {% else %}
-                            {{ _('property.price_on_request') }}
+                        {% if land.short_description %}
+                            <p class="card-desc">{{ land.short_description }}</p>
                         {% endif %}
-                    </p>
-                </div>
+
+                        {% if land.city or land.district %}
+                        <p class="card-location">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            {{ land.city }}{% if land.district %} · {{ land.district }}{% endif %}
+                        </p>
+                        {% endif %}
+
+                        <!-- مواصفات -->
+                        <div class="card-specs">
+                            {% if land.area %}
+                            <div class="spec">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                </svg>
+                                <span>{{ land.area }} م²</span>
+                            </div>
+                            {% endif %}
+                            {% if land.rooms %}
+                            <div class="spec">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8M2 16h20M6 10V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4"/>
+                                </svg>
+                                <span>{{ land.rooms }}</span>
+                            </div>
+                            {% endif %}
+                            {% if land.bathrooms %}
+                            <div class="spec">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 6L9 3.5a1 1 0 0 1 1-1h1.5M3 10h18M5 10v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9"/>
+                                </svg>
+                                <span>{{ land.bathrooms }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
             </article>
             {% endfor %}
         </div>
 
         {% else %}
         <div class="empty-state">
-            <p>{{ _('property.no_results') }}</p>
+            <div class="empty-icon">
+                <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <path d="M21 15l-5-5L5 21"/>
+                </svg>
+            </div>
+            <h2>{{ _('property.no_results') }}</h2>
+            <p>{{ _('common.no_results') }}</p>
         </div>
         {% endif %}
+
     </div>
 </section>
 
-<!-- ====== نافذة الفيديو المنبثقة ====== -->
-<div class="video-modal" id="videoModal" aria-hidden="true">
-    <div class="video-modal-overlay" data-close-modal></div>
-    <div class="video-modal-content">
-        <button class="video-modal-close" data-close-modal aria-label="{{ _('common.close') }}">&times;</button>
-        <div class="video-modal-frame" id="videoFrameContainer"></div>
-    </div>
-</div>
-
 <style>
-/* ====== شريط الفلترة ====== */
-.filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-    margin: 24px 0;
-    padding: 16px;
-    background: #f8f9fa;
-    border-radius: 10px;
+/* ============================================================
+   Page Header
+   ============================================================ */
+.page-header {
+    text-align: center;
+    margin-bottom: 32px;
 }
-.filter-item { flex: 1 1 180px; }
+.page-title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0 0 8px;
+    color: #111;
+}
+.page-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* ============================================================
+   Filter Bar
+   ============================================================ */
+.filter-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: end;
+    margin: 0 0 32px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.03);
+}
+.filter-item { position: relative; }
 .filter-select {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     background: #fff;
-    font-size: .95rem;
+    font-size: .92rem;
+    color: #111;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
 }
+[dir="rtl"] .filter-select {
+    background-position: left 12px center;
+    padding-right: 14px;
+    padding-left: 36px;
+}
+.filter-select:focus {
+    outline: none;
+    border-color: #0a58ca;
+    box-shadow: 0 0 0 3px rgba(10,88,202,.1);
+}
+.btn-filter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #0a58ca;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: .92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s ease, transform .15s ease;
+}
+.btn-filter:hover { background: #0847a6; transform: translateY(-1px); }
 
-/* ====== شبكة العقارات ====== */
+/* ============================================================
+   Property Grid
+   ============================================================ */
 .property-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 24px;
-    margin-top: 32px;
 }
+
+/* ============================================================
+   Property Card
+   ============================================================ */
 .property-card {
     background: #fff;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0,0,0,.08);
-    transition: transform .2s ease, box-shadow .2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    transition: transform .25s ease, box-shadow .25s ease;
     display: flex;
     flex-direction: column;
 }
 .property-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    transform: translateY(-6px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
+.card-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
-/* ====== غلاف الفيديو ====== */
-.video-wrapper {
+/* ---- الصورة ---- */
+.card-media {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    background: #000;
-    cursor: pointer;
+    aspect-ratio: 4 / 3;
     overflow: hidden;
+    background: #f3f4f6;
 }
-.video-thumb {
+.card-media img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform .3s ease, opacity .3s ease;
+    transition: transform .5s ease;
 }
-.video-wrapper:hover .video-thumb { transform: scale(1.05); opacity: .85; }
-.play-btn {
+.property-card:hover .card-media img {
+    transform: scale(1.06);
+}
+.card-placeholder {
     position: absolute;
     inset: 0;
-    margin: auto;
-    width: 68px;
-    height: 48px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: transform .2s ease;
-}
-.video-wrapper:hover .play-btn { transform: scale(1.1); }
-
-/* ====== معلومات العقار ====== */
-.property-info { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
-.property-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
-.badge {
-    font-size: .72rem;
-    padding: 3px 8px;
-    border-radius: 20px;
-    font-weight: 600;
-}
-.badge-featured { background: #fff3cd; color: #8a6d00; }
-.badge-purpose  { background: #e7f3ff; color: #0a58ca; }
-
-.property-title { margin: 0; font-size: 1.05rem; }
-.property-title a { color: inherit; text-decoration: none; }
-.property-title a:hover { color: #0a58ca; }
-.property-desc  { margin: 0; color: #555; font-size: .88rem; }
-.property-meta  { margin: 0; color: #666; font-size: .85rem; }
-.property-location { margin: 0; color: #555; font-size: .85rem; }
-.property-price {
-    margin: 6px 0 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #0a58ca;
-}
-
-/* ====== حالة عدم وجود نتائج ====== */
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: #777;
-    font-size: 1.05rem;
-}
-
-/* ====== نافذة الفيديو المنبثقة ====== */
-.video-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: none;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    color: #9ca3af;
+    background: linear-gradient(135deg, #f9fafb 0%, #eef2f7 100%);
+    font-size: .85rem;
 }
-.video-modal.is-open { display: flex; }
-.video-modal-overlay {
+
+/* ---- الشارات فوق الصورة ---- */
+.card-badges {
     position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,.85);
-    backdrop-filter: blur(4px);
+    top: 12px;
+    left: 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
 }
-.video-modal-content {
-    position: relative;
-    width: min(90vw, 960px);
-    aspect-ratio: 16 / 9;
-    background: #000;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
-    z-index: 1;
+[dir="rtl"] .card-badges { left: auto; right: 12px; }
+.badge {
+    font-size: .72rem;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 2px 6px rgba(0,0,0,.12);
 }
-.video-modal-frame,
-.video-modal-frame iframe { width: 100%; height: 100%; border: 0; }
-.video-modal-close {
+.badge-featured { background: rgba(255,243,205,.95); color: #8a6d00; }
+.badge-purpose  { background: rgba(231,243,255,.95); color: #0a58ca; }
+
+/* ---- السعر فوق الصورة ---- */
+.card-price {
     position: absolute;
-    top: -44px;
-    right: 0;
-    background: transparent;
-    border: none;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(10,88,202,.95);
     color: #fff;
-    font-size: 32px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 4px 8px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 12px rgba(10,88,202,.35);
 }
-.video-modal-close:hover { color: #ff4d4d; }
+[dir="rtl"] .card-price { right: auto; left: 12px; }
+.card-price span {
+    font-size: .75rem;
+    font-weight: 500;
+    opacity: .9;
+    margin-inline-start: 4px;
+}
+
+/* ---- الجسم ---- */
+.card-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+.card-title {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #111;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.card-desc {
+    margin: 0;
+    color: #6b7280;
+    font-size: .88rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.card-location {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: #6b7280;
+    font-size: .85rem;
+}
+.card-location svg { color: #0a58ca; flex-shrink: 0; }
+
+/* ---- المواصفات ---- */
+.card-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 12px;
+    margin-top: auto;
+    border-top: 1px solid #f3f4f6;
+}
+.spec {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .82rem;
+    color: #374151;
+    font-weight: 600;
+}
+.spec svg { color: #9ca3af; }
+
+/* ============================================================
+   Empty State
+   ============================================================ */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    background: #f9fafb;
+    border-radius: 16px;
+    border: 2px dashed #e5e7eb;
+}
+.empty-icon { color: #d1d5db; margin-bottom: 16px; }
+.empty-state h2 { margin: 0 0 8px; font-size: 1.3rem; color: #374151; }
+.empty-state p { margin: 0; color: #9ca3af; }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 640px) {
+    .page-title { font-size: 1.6rem; }
+    .filter-bar { grid-template-columns: 1fr; }
+    .property-grid { grid-template-columns: 1fr; gap: 16px; }
+    .card-body { padding: 14px; }
+}
 </style>
-
-<script>
-(function () {
-    'use strict';
-
-    const modal       = document.getElementById('videoModal');
-    const frameHolder = document.getElementById('videoFrameContainer');
-
-    function openVideo(videoId) {
-        frameHolder.innerHTML =
-            '<iframe src="https://www.youtube.com/embed/' + videoId +
-            '?autoplay=1&rel=0&modestbranding=1" ' +
-            'title="معاينة العقار" allow="accelerometer; autoplay; clipboard-write; ' +
-            'encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeVideo() {
-        frameHolder.innerHTML = '';
-        modal.classList.remove('is-open');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-    }
-
-    document.querySelectorAll('.video-wrapper[data-video-id]').forEach(function (wrapper) {
-        wrapper.addEventListener('click', function (e) {
-            if (e.target.closest('.play-btn') || e.currentTarget === wrapper) {
-                openVideo(wrapper.dataset.videoId);
-            }
-        });
-    });
-
-    modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
-        el.addEventListener('click', closeVideo);
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal.classList.contains('is-open')) {
-            closeVideo();
-        }
-    });
-})();
-</script>
 {% endblock %}
