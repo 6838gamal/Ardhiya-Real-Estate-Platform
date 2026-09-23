@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from functools import lru_cache
-from typing import Dict
+from typing import Dict, Optional
 
 from app.config.settings import settings
 
@@ -21,16 +21,32 @@ def _load_translations() -> Dict[str, Dict[str, str]]:
     return translations
 
 
-def get_translation(lang: str, key: str) -> str:
+def get_translation(lang: str, key: str, default: Optional[str] = None) -> str:
+    """جلب ترجمة مفتاح مع دعم fallback للغة الافتراضية ثم القيمة الافتراضية."""
     translations = _load_translations()
-    # ✅ استخدام DEFAULT_LANGUAGE بدلاً من default_language
-    table = translations.get(lang, translations.get(settings.DEFAULT_LANGUAGE, {}))
-    return table.get(key, key)
+
+    # 1) اللغة المطلوبة
+    table = translations.get(lang, {})
+    if key in table and table[key]:
+        return table[key]
+
+    # 2) اللغة الافتراضية
+    default_table = translations.get(settings.DEFAULT_LANGUAGE, {})
+    if key in default_table and default_table[key]:
+        return default_table[key]
+
+    # 3) القيمة الافتراضية
+    if default is not None:
+        return default
+
+    # 4) كحل أخير
+    return key
 
 
 def make_gettext(lang: str):
-    def _(key: str) -> str:
-        return get_translation(lang, key)
+    """ينشئ دالة _() مرتبطة بلغة معينة وتدعم القيمة الافتراضية."""
+    def _(key: str, default: Optional[str] = None) -> str:
+        return get_translation(lang, key, default)
     return _
 
 
