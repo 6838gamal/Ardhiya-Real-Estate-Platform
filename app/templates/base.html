@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ current_lang or 'ar' }}" dir="{{ direction or 'rtl' }}" data-theme="light">
+<html lang="{{ lang or 'ar' }}" dir="{{ dir or 'rtl' }}" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
@@ -47,8 +47,8 @@
                         </svg>
                     </button>
                     <div class="lang-dropdown" id="langDropdown">
-                        {% for l in available_languages %}
-                        <button class="lang-option {{ 'selected' if l.code == current_lang else '' }}"
+                        {% for l in languages %}
+                        <button class="lang-option {{ 'selected' if l.code == lang else '' }}"
                                 data-lang="{{ l.code }}">
                             {{ l.name }}
                         </button>
@@ -142,12 +142,12 @@
             urls: {
                 login: "/login",
                 logout: "/auth/google/logout",
-                lang: "/lang/"
+                lang: "/set-lang/"
             },
 
-            // Current context
-            currentLang: {{ current_lang | tojson }},
-            direction: {{ direction | tojson }}
+            // ✅ استخدام lang و dir بدل current_lang و direction
+            currentLang: {{ (lang or 'ar') | tojson }},
+            direction: {{ (dir or 'rtl') | tojson }}
         };
     </script>
 
@@ -674,7 +674,7 @@
             function renderUserMenu(container, userData) {
                 const name = userData.name || window.I18N.user;
                 const email = userData.email || '';
-                const picture = userData.picture || '';
+                const picture = userData.picture || userData.avatar_url || '';
                 const role = userData.role || 'user';
                 const initial = name.charAt(0).toUpperCase();
 
@@ -881,6 +881,7 @@
                         const lang = this.dataset.lang;
                         if (lang) {
                             const currentPath = window.location.pathname + window.location.search;
+                            // ✅ استخدام /set-lang/ المطابق لـ main.py
                             window.location.href = `${window.I18N.urls.lang}${lang}?next=${encodeURIComponent(currentPath)}`;
                         }
                     });
