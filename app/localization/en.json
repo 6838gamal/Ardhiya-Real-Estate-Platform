@@ -11,6 +11,18 @@
   "nav.logout": "Logout",
   "nav.admin": "Admin",
 
+  
+  "nav.profile": "Profile",
+  "nav.settings": "Settings",
+  "role.admin": "Admin",
+  "role.owner": "Owner",
+  "role.buyer": "Buyer",
+  "role.user": "User",
+  "common.confirm_logout": "Are you sure you want to logout?",
+  "auth.login_success": "Logged in successfully",
+  "auth.logout_success": "Logged out successfully",
+
+
   "home.title": "Find Your Dream Home",
   "home.subtitle": "Thousands of properties in one place. Search, compare, and choose what suits you.",
   "home.search_placeholder": "Search by area, type, or price...",
